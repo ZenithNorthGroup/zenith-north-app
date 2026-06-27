@@ -17,7 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { validateAdminRequest, adminUnauthorized } from '../middleware'
+import { validateAdminRequest, adminUnauthorized } from '../../middleware'
 import { db } from '@/lib/db'
 import { sql } from 'drizzle-orm'
 
