@@ -1,0 +1,248 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --admin-bg:       #0A0A0A;
+  --admin-surface:  #111111;
+  --admin-surface2: #161616;
+  --admin-surface3: #1C1C1C;
+  --admin-border:   #252525;
+  --admin-border2:  #303030;
+  --admin-gold:     #C9A96E;
+  --admin-gold-dim: rgba(201,169,110,0.25);
+  --admin-text1:    #F0F0F0;
+  --admin-text2:    #A0A0A0;
+  --admin-text3:    #606060;
+  --admin-success:  #4CAF82;
+  --admin-warning:  #E8A838;
+  --admin-danger:   #E05252;
+  --admin-info:     #5B9BD6;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  background: var(--admin-bg);
+  color: var(--admin-text1);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100%;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--admin-border2); border-radius: 2px; }
+
+/* Focus */
+:focus-visible { outline: 1px solid var(--admin-gold); outline-offset: 2px; }
+
+/* ── Shared components ── */
+
+.card {
+  background: var(--admin-surface);
+  border: 0.5px solid var(--admin-border);
+  border-radius: 6px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 0.5px solid var(--admin-border);
+}
+
+.card-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--admin-text1);
+}
+
+.stat-card {
+  background: var(--admin-surface);
+  border: 0.5px solid var(--admin-border);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.stat-label {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--admin-text3);
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 6px;
+}
+
+.stat-num {
+  font-size: 22px;
+  font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+
+.field-label {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--admin-text3);
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.field-input {
+  width: 100%;
+  background: var(--admin-surface3);
+  border: 0.5px solid var(--admin-border);
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--admin-text1);
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.field-input:focus {
+  border-color: var(--admin-gold-dim);
+}
+
+.field-select {
+  width: 100%;
+  background: var(--admin-surface3);
+  border: 0.5px solid var(--admin-border);
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--admin-text1);
+  outline: none;
+  cursor: pointer;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 0.5px solid transparent;
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.btn-gold {
+  background: var(--admin-gold);
+  color: #0A0A0A;
+  border-color: var(--admin-gold);
+}
+.btn-gold:hover { opacity: 0.9; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--admin-text2);
+  border-color: var(--admin-border);
+}
+.btn-ghost:hover {
+  border-color: var(--admin-border2);
+  color: var(--admin-text1);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--admin-danger);
+  border-color: rgba(224,82,82,0.3);
+}
+.btn-danger:hover { background: rgba(224,82,82,0.08); }
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+/* Status pills */
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  border: 0.5px solid transparent;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+.pill-success { background: rgba(76,175,130,0.1); color: var(--admin-success); border-color: rgba(76,175,130,0.25); }
+.pill-warning { background: rgba(232,168,56,0.1); color: var(--admin-warning); border-color: rgba(232,168,56,0.25); }
+.pill-danger  { background: rgba(224,82,82,0.1);  color: var(--admin-danger);  border-color: rgba(224,82,82,0.25);  }
+.pill-gold    { background: rgba(201,169,110,0.1); color: var(--admin-gold);   border-color: rgba(201,169,110,0.25); }
+.pill-ghost   { background: var(--admin-surface3); color: var(--admin-text2);  border-color: var(--admin-border); }
+.pill-info    { background: rgba(91,155,214,0.1);  color: var(--admin-info);   border-color: rgba(91,155,214,0.25); }
+
+/* Mono text */
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* Status dot */
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; }
+.dot-success { background: var(--admin-success); }
+.dot-warning { background: var(--admin-warning); }
+.dot-danger  { background: var(--admin-danger);  }
+.dot-ghost   { background: var(--admin-text3);   }
+
+/* Section label */
+.sl {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--admin-text3);
+  font-family: 'JetBrains Mono', monospace;
+  margin: 20px 0 10px;
+}
+
+/* Table */
+.table { width: 100%; border-collapse: collapse; }
+.table th {
+  text-align: left;
+  padding: 8px 14px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--admin-text3);
+  font-family: 'JetBrains Mono', monospace;
+  border-bottom: 0.5px solid var(--admin-border);
+  background: var(--admin-surface2);
+}
+.table td {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--admin-text2);
+  border-bottom: 0.5px solid var(--admin-border);
+  vertical-align: middle;
+}
+.table tr:last-child td { border-bottom: none; }
+.table tr:hover td { background: var(--admin-surface2); }
+
+/* Code block */
+.code-block {
+  background: #0D0D0D;
+  border: 0.5px solid var(--admin-border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--admin-gold);
+  overflow-x: auto;
+  white-space: pre;
+}

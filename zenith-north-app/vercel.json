@@ -1,0 +1,29 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "env": {
+    "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY": "@clerk-publishable-key",
+    "CLERK_SECRET_KEY": "@clerk-secret-key",
+    "DATABASE_URL": "@database-url",
+    "ANTHROPIC_API_KEY": "@anthropic-api-key",
+    "TWILIO_ACCOUNT_SID": "@twilio-account-sid",
+    "TWILIO_AUTH_TOKEN": "@twilio-auth-token",
+    "TWILIO_PHONE_NUMBER": "@twilio-phone-number",
+    "ZOOM_WEBHOOK_SECRET": "@zoom-webhook-secret",
+    "ZOOM_ACCOUNT_ID": "@zoom-account-id",
+    "ZOOM_CLIENT_ID": "@zoom-client-id",
+    "ZOOM_CLIENT_SECRET": "@zoom-client-secret",
+    "CRON_SECRET": "@cron-secret",
+    "PORTAL_SECRET": "@portal-secret",
+    "PORTAL_URL": "@portal-url",
+    "SERVICE_SECRET": "@service-secret",
+    "MAIN_API_URL": "@main-api-url",
+    "R2_ACCOUNT_ID": "@r2-account-id",
+    "R2_ACCESS_KEY_ID": "@r2-access-key-id",
+    "R2_SECRET_ACCESS_KEY": "@r2-secret-access-key",
+    "R2_BUCKET_NAME": "@r2-bucket-name",
+    "ADMIN_SECRET": "@admin-secret"
+  }
+}
