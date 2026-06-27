@@ -10,7 +10,6 @@ import {
   IconBrandZoom, IconAlertTriangle, IconChevronDown,
   IconChevronRight,
 } from '@tabler/icons-react'
-import { getJournalAddress } from '@/lib/messaging/email'
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -412,7 +411,7 @@ function SlackSetup() {
 export default function IntegrationsPage() {
   // In production: get tenantSlug from auth context
   const tenantSlug = 'wright-advisory'
-  const journalAddress = getJournalAddress(tenantSlug)
+  const journalAddress = `ingest-${tenantSlug}@mail.zenith-north.com`
 
   const CHANNELS: Channel[] = [
     // Email — highest priority
