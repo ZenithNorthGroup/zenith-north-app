@@ -104,11 +104,11 @@ html, body {
   .pill {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium border;
   }
-  .pill-danger  { background: var(--zn-danger-bg);  border-color: var(--zn-danger-border);  color: var(--zn-danger);  }
-  .pill-warn    { background: var(--zn-warning-bg); border-color: var(--zn-warning-border); color: var(--zn-warning); }
-  .pill-success { background: var(--zn-success-bg); border-color: var(--zn-success-border); color: var(--zn-success); }
-  .pill-gold    { background: var(--zn-gold-bg);    border-color: var(--zn-gold-border);    color: var(--zn-gold-dim); }
-  .pill-ghost   { @apply pill bg-[var(--zn-surface-2)] border-[var(--zn-border)] text-[var(--zn-text-3)]; }
+  .pill-warn    { background: rgba(232,168,56,0.1); border-color: rgba(232,168,56,0.25); @apply pill text-zn-warning; }
+  .pill-success { background: rgba(76,175,130,0.1); border-color: rgba(76,175,130,0.25); @apply pill text-zn-success; }
+  .pill-danger  { background: rgba(224,82,82,0.1); border-color: rgba(224,82,82,0.25); @apply pill text-zn-danger; }
+  .pill-gold    { background: rgba(201,169,110,0.08); border-color: rgba(201,169,110,0.2); @apply pill text-zn-gold; }
+  .pill-ghost   { @apply pill bg-transparent border-zn-border text-zn-text-3; }
   .pill-info    { @apply pill bg-blue-50 border-blue-200 text-blue-700; }
 
   /* ── Cards ── */
