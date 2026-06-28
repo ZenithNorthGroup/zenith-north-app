@@ -390,114 +390,23 @@ export default function DashboardPage() {
 
   return (
     <div className="animate-fade-in">
-      {/* Greeting */}
-      <div className="mb-6">
-        <h1 className="text-[20px] font-light tracking-tight text-zn-text-1">
-          Good morning, <span className="font-semibold text-zn-gold">James.</span>
-        </h1>
-        <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.04em] text-zn-text-3">
-          {new Date().toLocaleDateString('en-US', {
-            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-          }).toUpperCase()} · WRIGHT ADVISORY
-          {items.length > 0 && ` · ${items.length} ITEM${items.length !== 1 ? 'S' : ''} NEED ATTENTION`}
-        </p>
-      </div>
-
-      {/* Stats */}
-      <div className="mb-5 grid grid-cols-4 gap-2.5">
-        <StatCard
-          label="Active clients"
-          value={isLoading ? '—' : (complianceData?.activeClients ?? '—')}
-          delta="+3 this month"
-          variant="gold"
-          href="/clients"
-        />
-        <StatCard
-          label="Compliance items"
-          value={isLoading ? '—' : (stats?.critical ?? 0) + (stats?.warning ?? 0)}
-          delta={`${stats?.critical ?? 0} critical · ${stats?.warning ?? 0} warning`}
-          variant="danger"
-          href="/compliance"
-        />
-        <StatCard
-          label="Active onboardings"
-          value={isLoading ? '—' : 4}
-          delta="1 awaiting your approval"
-          variant="warning"
-          href="/workflows"
-        />
-        <StatCard
-          label="Reviews due (60d)"
-          value={isLoading ? '—' : 12}
-          delta="5 overdue"
-          href="/compliance"
-        />
-      </div>
-
-      {/* Two-col grid */}
-      <div className="mb-3 grid grid-cols-2 gap-3">
-
-        {/* Compliance queue */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Compliance queue</span>
-            <Link href="/compliance" className="card-action">View all</Link>
-          </div>
-          {isLoading ? (
-            <div className="px-4 py-6 text-center font-mono text-[11px] text-zn-text-3">
-              Loading...
-            </div>
-          ) : topItems.length === 0 ? (
-            <div className="px-4 py-6 text-center font-mono text-[11px] text-zn-text-3">
-              No open items — firm is compliant
-            </div>
-          ) : (
-            topItems.map(item => (
-              <ComplianceQueueItem
-                key={item.id}
-                severity={item.severity as 'critical' | 'warning'}
-                title={item.title}
-                meta={item.dueAt
-                  ? `Due ${formatDate(item.dueAt)}`
-                  : item.description ?? ''
-                }
-                href="/compliance"
-              />
-            ))
-          )}
-        </div>
-
-        {/* Upcoming deadlines */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Upcoming deadlines</span>
-            <Link href="/calendar" className="card-action">Full calendar</Link>
-          </div>
-          <div className="px-4">
-            {upcomingFilings.length === 0 ? (
-              <>
-                <DeadlineItem date="JUL 29" title="Form ADV annual amendment" type="SEC FILING · 35 DAYS" pill="Filing" pillVariant="danger" />
-                <DeadlineItem date="JUL 12" title="Annual review — Sandra Chukwu" type="CLIENT REVIEW · 18 DAYS" pill="Review" pillVariant="warning" />
-                <DeadlineItem date="JUN 26" title="Quarterly meeting — Brian Tran" type="CLIENT MEETING · 2 DAYS" pill="Meeting" pillVariant="gold" />
-                <DeadlineItem date="AUG 14" title="Form PF quarterly filing" type="SEC FILING · 51 DAYS" pill="Filing" pillVariant="danger" />
-              </>
-            ) : (
-              upcomingFilings.map(event => {
-                const days = daysUntil(event.dueAt)
-                return (
-                  <DeadlineItem
-                    key={event.id}
-                    date={formatDate(event.dueAt, { month: 'short', day: 'numeric' }).toUpperCase()}
-                    title={event.title}
-                    type={`${event.eventType.toUpperCase()} · ${days}D`}
-                    pill={days < 30 ? `${days}d` : event.eventType}
-                    pillVariant={days < 30 ? 'danger' : 'ghost' as never}
-                  />
-                )
-              })
-            )}
-          </div>
-        </div>
+      {/* Header */}
+      <div className="mb-6 flex items-end justify-between">
+        <div>
+          <h1 className="text-[22px] font-light tracking-tight text-zn-text-1">
+            {greeting},{' '}
+            <span className="font-semibold" style={{ color: 'var(--zn-gold-dark)' }}>James.</span>
+          </h1>
+          <p className="mt-1 text-[12px] text-zn-text-3">
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            {' · '}
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{ background: 'var(--zn-gold-bg)', color: 'var(--zn-gold-dark)' }}
+            >
+              {roleLabel}
+            </span>
+          </p>
         </div>
       </div>
 
