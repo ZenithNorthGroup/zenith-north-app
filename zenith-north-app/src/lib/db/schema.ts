@@ -477,3 +477,159 @@ export const workflowStepsRelations = relations(workflowSteps, ({ one, many }) =
   workflow:    one(workflows, { fields: [workflowSteps.workflowId], references: [workflows.id] }),
   completions: many(workflowStepCompletions),
 }))
+
+// ── Phase 2 tables ─────────────────────────────────────────
+
+/**
+ * WSP (Written Supervisory Procedures) — versioned living document
+ */
+export const wspDocuments = pgTable('wsp_documents', {
+  id:          uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId:    uuid('tenant_id').notNull().references(() => tenants.id),
+  version:     integer('version').notNull().default(1),
+  content:     text('content').notNull(),             // Full WSP text (markdown)
+  status:      text('status').notNull().default('draft'), // draft | active | superseded
+  signedBy:    uuid('signed_by').references(() => users.id),
+  signedAt:    timestamp('signed_at'),
+  effectiveAt: timestamp('effective_at'),
+  createdBy:   uuid('created_by').references(() => users.id),
+  createdAt:   timestamp('created_at').notNull().defaultNow(),
+  archivedAt:  timestamp('archived_at'),
+})
+
+/**
+ * DEO Undertaking — per-advisor, tracks signature and renewal
+ */
+export const deoUndertakings = pgTable('deo_undertakings', {
+  id:          uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId:    uuid('tenant_id').notNull().references(() => tenants.id),
+  userId:      uuid('user_id').notNull().references(() => users.id),
+  signedAt:    timestamp('signed_at'),
+  expiresAt:   timestamp('expires_at'),
+  version:     integer('version').notNull().default(1),
+  channels:    text('channels').array(),     // Which channels they agreed to
+  documentUrl: text('document_url'),
+  createdAt:   timestamp('created_at').notNull().defaultNow(),
+})
+
+/**
+ * Marketing content — Rule 206(4)-1 pre-approval workflow
+ */
+export const marketingContent = pgTable('marketing_content', {
+  id:           uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId:     uuid('tenant_id').notNull().references(() => tenants.id),
+  submittedBy:  uuid('submitted_by').notNull().references(() => users.id),
+  contentType:  text('content_type').notNull(), // linkedin_post | newsletter | website | advertisement | social | other
+  platform:     text('platform'),
+  title:        text('title').notNull(),
+  body:         text('body').notNull(),
+  attachments:  jsonb('attachments').default('[]'),
+  status:       text('status').notNull().default('pending'), // pending | approved | rejected | revision_requested
+  reviewedBy:   uuid('reviewed_by').references(() => users.id),
+  reviewedAt:   timestamp('reviewed_at'),
+  reviewNotes:  text('review_notes'),
+  publishedAt:  timestamp('published_at'),
+  scheduledFor: timestamp('scheduled_for'),
+  tags:         text('tags').array(),
+  createdAt:    timestamp('created_at').notNull().defaultNow(),
+  archivedAt:   timestamp('archived_at'),
+})
+
+/**
+ * Annual reviews — dedicated tracking per client
+ */
+export const annualReviews = pgTable('annual_reviews', {
+  id:              uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId:        uuid('tenant_id').notNull().references(() => tenants.id),
+  clientId:        uuid('client_id').notNull(),
+  advisorId:       uuid('advisor_id').references(() => users.id),
+  dueAt:           timestamp('due_at').notNull(),
+  scheduledAt:     timestamp('scheduled_at'),
+  completedAt:     timestamp('completed_at'),
+  completedBy:     uuid('completed_by').references(() => users.id),
+  notes:           text('notes'),
+  outcome:         text('outcome'),         // completed | client_cancelled | advisor_cancelled | rescheduled
+  alert60Sent:     boolean('alert_60_sent').notNull().default(false),
+  alert30Sent:     boolean('alert_30_sent').notNull().default(false),
+  alert7Sent:      boolean('alert_7_sent').notNull().default(false),
+  nextReviewDue:   timestamp('next_review_due'),
+  createdAt:       timestamp('created_at').notNull().defaultNow(),
+})
+
+/**
+ * Incidents & complaints — timed response tracking
+ */
+export const incidents = pgTable('incidents', {
+  id:             uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId:       uuid('tenant_id').notNull().references(() => tenants.id),
+  clientId:       uuid('client_id'),
+  reportedBy:     uuid('reported_by').references(() => users.id),
+  assignedTo:     uuid('assigned_to').references(() => users.id),
+  incidentType:   text('incident_type').notNull(), // complaint | regulatory_inquiry | data_breach | trading_error | other
+  severity:       text('severity').notNull().default('medium'), // low | medium | high | critical
+  title:          text('title').notNull(),
+  description:    text('description').notNull(),
+  responseDeadline: timestamp('response_deadline'),
+  respondedAt:    timestamp('responded_at'),
+  resolvedAt:     timestamp('resolved_at'),
+  resolution:     text('resolution'),
+  regulatoryRef:  text('regulatory_ref'),  // SEC case number etc
+  attachments:    jsonb('attachments').default('[]'),
+  timeline:       jsonb('timeline').default('[]'),
+  createdAt:      timestamp('created_at').notNull().defaultNow(),
+  archivedAt:     timestamp('archived_at'),
+})
+
+/**
+ * Fee disclosures — billing and fee tracking per client
+ */
+export const feeDisclosures = pgTable('fee_disclosures', {
+  id:              uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId:        uuid('tenant_id').notNull().references(() => tenants.id),
+  clientId:        uuid('client_id').notNull(),
+  feeType:         text('fee_type').notNull(), // aum_percentage | flat | hourly | performance | other
+  feeAmount:       text('fee_amount').notNull(),
+  billingCycle:    text('billing_cycle'),       // monthly | quarterly | annual
+  disclosedAt:     timestamp('disclosed_at'),
+  acknowledgedAt:  timestamp('acknowledged_at'),
+  documentId:      uuid('document_id'),
+  effectiveFrom:   timestamp('effective_from').notNull(),
+  effectiveTo:     timestamp('effective_to'),
+  createdAt:       timestamp('created_at').notNull().defaultNow(),
+})
+
+/**
+ * Vendor management — third party due diligence
+ */
+export const vendors = pgTable('vendors', {
+  id:               uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId:         uuid('tenant_id').notNull().references(() => tenants.id),
+  name:             text('name').notNull(),
+  vendorType:       text('vendor_type').notNull(), // custodian | technology | compliance | legal | accounting | other
+  website:          text('website'),
+  contactName:      text('contact_name'),
+  contactEmail:     text('contact_email'),
+  ddStatus:         text('dd_status').notNull().default('pending'), // pending | in_review | approved | rejected | expired
+  ddCompletedAt:    timestamp('dd_completed_at'),
+  ddNextReviewAt:   timestamp('dd_next_review_at'),
+  contractStart:    timestamp('contract_start'),
+  contractEnd:      timestamp('contract_end'),
+  notes:            text('notes'),
+  riskLevel:        text('risk_level').default('medium'),
+  createdAt:        timestamp('created_at').notNull().defaultNow(),
+  archivedAt:       timestamp('archived_at'),
+})
+
+/**
+ * Channel webhooks — tracks inbound from all platforms
+ */
+export const channelEvents = pgTable('channel_events', {
+  id:          uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId:    uuid('tenant_id').notNull().references(() => tenants.id),
+  platform:    text('platform').notNull(), // whatsapp | linkedin | twitter | slack | teams | zoom
+  eventType:   text('event_type').notNull(),
+  payload:     jsonb('payload').notNull(),
+  processedAt: timestamp('processed_at'),
+  error:       text('error'),
+  createdAt:   timestamp('created_at').notNull().defaultNow(),
+})

@@ -295,6 +295,7 @@ export const workflowsRouter = router({
     .input(z.object({
       status:   z.string().optional(),
       entityId: z.string().uuid().optional(),
+      filter:   z.enum(['active', 'completed', 'all']).optional(),
       limit:    z.number().default(50),
     }))
     .query(async ({ ctx, input }) => {
@@ -306,6 +307,11 @@ export const workflowsRouter = router({
             : undefined,
           input.entityId
             ? eq(workflowRuns.entityId, input.entityId)
+            : undefined,
+          input.filter === 'active'
+            ? isNull(workflowRuns.completedAt)
+            : input.filter === 'completed'
+            ? sql`completed_at IS NOT NULL`
             : undefined,
         ),
         orderBy: desc(workflowRuns.startedAt),
@@ -778,19 +784,19 @@ export const workflowsRouter = router({
    */
   summary: withPermission('workflows.view')
     .query(async ({ ctx }) => {
-      const runs = await db.query.workflowRuns.findMany({
-        where: and(
-          eq(workflowRuns.tenantId, ctx.tenant.id),
-          isNull(workflowRuns.completedAt),
-        ),
+      const allRuns = await db.query.workflowRuns.findMany({
+        where: eq(workflowRuns.tenantId, ctx.tenant.id),
       })
 
+      const active = allRuns.filter(r => !r.completedAt)
+
       return {
-        total:            runs.length,
-        awaitingClient:   runs.filter(r => r.status === 'awaiting_client').length,
-        awaitingAdvisor:  runs.filter(r => r.status === 'awaiting_advisor').length,
-        awaitingApproval: runs.filter(r => r.status === 'awaiting_approval').length,
-        blocked:          runs.filter(r => r.status === 'blocked').length,
+        total:            active.length,
+        awaitingClient:   active.filter(r => r.status === 'awaiting_client').length,
+        awaitingAdvisor:  active.filter(r => r.status === 'awaiting_advisor').length,
+        awaitingApproval: active.filter(r => r.status === 'awaiting_approval').length,
+        blocked:          active.filter(r => r.status === 'blocked').length,
+        completed:        allRuns.filter(r => !!r.completedAt).length,
       }
     }),
 })

@@ -369,11 +369,50 @@ export default function FirmSetupPage() {
   const hasCco = team.some(m => m.isCco)
   const canContinue = isTeamStep ? (team.length > 0 && hasCco) : true
 
+  const [saveError, setSaveError] = useState<string | null>(null)
+
   async function handleSave() {
     setSaving(true)
-    await new Promise(r => setTimeout(r, 1200))
-    setSaving(false)
-    router.push('/firms')
+    setSaveError(null)
+
+    // Build slug from firm name
+    const slug = (data.firmName ?? 'new-firm')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40)
+
+    try {
+      const apiUrl   = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'
+      const adminKey = process.env.NEXT_PUBLIC_ADMIN_SECRET ?? ''
+
+      const response = await fetch(`${apiUrl}/api/admin/tenants/create`, {
+        method:  'POST',
+        headers: {
+          'Content-Type':   'application/json',
+          'X-Admin-Secret': adminKey,
+        },
+        body: JSON.stringify({
+          ...data,
+          slug,
+          modules: data,
+          team,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        setSaveError(result.error ?? 'Failed to create firm')
+        setSaving(false)
+        return
+      }
+
+      router.push(`/firms/${result.tenantId}`)
+    } catch (err) {
+      setSaveError('Network error — check API URL in settings')
+      setSaving(false)
+    }
   }
 
   return (
@@ -449,9 +488,12 @@ export default function FirmSetupPage() {
                 <div style={{ fontSize: 11, color: 'var(--admin-danger)' }}>⚠ Designate a CCO to continue</div>
               )}
 
+              {saveError && (
+                <div style={{ fontSize: 11, color: 'var(--admin-danger)', marginBottom: 6 }}>⚠ {saveError}</div>
+              )}
               {isLast ? (
                 <button onClick={handleSave} disabled={saving || !canContinue} style={{ padding: '8px 24px', border: 'none', borderRadius: 6, background: 'var(--admin-gold)', color: '#0A0A0A', fontSize: 13, fontWeight: 600, cursor: (saving || !canContinue) ? 'not-allowed' : 'pointer', opacity: (saving || !canContinue) ? 0.6 : 1 }}>
-                  {saving ? 'Creating firm...' : 'Create firm & generate quote →'}
+                  {saving ? 'Creating firm...' : 'Create firm →'}
                 </button>
               ) : (
                 <button onClick={() => { if (canContinue) setStep(s => Math.min(REGULAR_STEPS.length - 1, s + 1)) }} disabled={!canContinue} style={{ padding: '8px 24px', border: 'none', borderRadius: 6, background: 'var(--admin-gold)', color: '#0A0A0A', fontSize: 13, fontWeight: 600, cursor: canContinue ? 'pointer' : 'not-allowed', opacity: canContinue ? 1 : 0.5 }}>

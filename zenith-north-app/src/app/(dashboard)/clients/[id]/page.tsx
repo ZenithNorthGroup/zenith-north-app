@@ -1,273 +1,347 @@
 'use client'
 
-import { use } from 'react'
+import { useState } from 'react'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { trpc } from '@/lib/trpc/provider'
-import { cn, getInitials, formatDate, daysBetween } from '@/lib/utils'
+import { formatDate, cn } from '@/lib/utils'
 import {
-  IconArrowLeft, IconNotes, IconMessage,
-  IconPackage, IconCheck, IconAlertTriangle,
-  IconSignature, IconFileText,
+  IconArrowLeft, IconEdit, IconCheck, IconX, IconUser,
+  IconMail, IconPhone, IconShield, IconMessage,
+  IconFileText, IconGitBranch, IconListCheck, IconLoader2,
 } from '@tabler/icons-react'
-import type { ClientData } from '@/lib/db/schema'
 
-// ── Info cell ─────────────────────────────────────────────
+const TABS = [
+  { id: 'overview',   label: 'Overview',      icon: IconUser },
+  { id: 'compliance', label: 'Compliance',     icon: IconShield },
+  { id: 'messages',   label: 'Communications', icon: IconMessage },
+  { id: 'documents',  label: 'Documents',      icon: IconFileText },
+  { id: 'workflows',  label: 'Workflows',      icon: IconGitBranch },
+  { id: 'tasks',      label: 'Tasks',          icon: IconListCheck },
+] as const
+type Tab = typeof TABS[number]['id']
 
-function InfoCell({ label, value, variant = 'default' }: {
-  label: string
-  value: string
-  variant?: 'default' | 'success' | 'danger' | 'warning' | 'gold'
-}) {
-  const valueColor = {
-    default: 'text-zn-text-1',
-    success: 'text-zn-success',
-    danger:  'text-zn-danger',
-    warning: 'text-zn-warning',
-    gold:    'text-zn-gold font-mono',
-  }[variant]
-
-  return (
-    <div className="rounded border border-zn-border bg-zn-surface-2 p-3">
-      <div className="field-label">{label}</div>
-      <div className={cn('text-sm font-medium', valueColor)}>{value}</div>
-    </div>
-  )
+const STATUS_CONFIG: Record<string, { pill: string; label: string }> = {
+  active:   { pill: 'pill-success', label: 'Active' },
+  prospect: { pill: 'pill-gold',    label: 'Prospect' },
+  inactive: { pill: 'pill-ghost',   label: 'Inactive' },
 }
 
-// ── Timeline entry ────────────────────────────────────────
-
-function TimelineEntry({ dot, action, time }: {
-  dot: 'success' | 'gold' | 'warn' | 'ghost'
-  action: React.ReactNode
-  time: string
-}) {
-  return (
-    <div className="flex gap-3 border-b border-zn-border py-3 last:border-0">
-      <div className="flex flex-col items-center pt-1">
-        <div className={`tl-dot-${dot}`} />
-        <div className="mt-1 w-px flex-1 bg-zn-border" />
-      </div>
-      <div className="flex-1 pb-1">
-        <div className="text-sm text-zn-text-2 leading-snug">{action}</div>
-        <div className="mt-1 font-mono text-[10px] text-zn-text-3">{time}</div>
-      </div>
-    </div>
-  )
+const KYC_CONFIG: Record<string, { pill: string; label: string }> = {
+  verified:     { pill: 'pill-success', label: 'Verified' },
+  needs_review: { pill: 'pill-warn',    label: 'Needs review' },
+  pending:      { pill: 'pill-ghost',   label: 'Pending' },
+  flagged:      { pill: 'pill-danger',  label: 'Flagged' },
 }
 
-// ── Compliance item row ────────────────────────────────────
+export default function ClientDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const [tab, setTab] = useState<Tab>('overview')
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState<Record<string, string>>({})
+  const [saved, setSaved] = useState(false)
 
-function ComplianceRow({ item }: { item: any }) {
-  return (
-    <div className="flex items-center gap-3 border-b border-zn-border py-2.5 last:border-0">
-      <div className={cn(
-        'h-1.5 w-1.5 rounded-full flex-shrink-0',
-        item.severity === 'critical' ? 'bg-zn-danger' : 'bg-zn-warning',
-      )} />
-      <div className="flex-1 text-sm text-zn-text-1">{item.title}</div>
-      <span className={cn('pill', item.severity === 'critical' ? 'pill-danger' : 'pill-warn')}>
-        {item.severity}
-      </span>
-    </div>
-  )
-}
-
-// ── Page ──────────────────────────────────────────────────
-
-export default function ClientDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = use(params)
-
-  const { data, isLoading, error } = trpc.clients.get360.useQuery({ id })
+  const { data, isLoading, error, refetch } = trpc.clients.get360.useQuery({ id })
+  const updateMutation = trpc.clients.update.useMutation({
+    onSuccess: () => { refetch(); setEditing(false); setSaved(true); setTimeout(() => setSaved(false), 3000) }
+  })
+  const { data: me } = trpc.me.getMe.useQuery()
 
   if (isLoading) {
     return (
-      <div className="animate-fade-in">
-        <div className="mb-4 flex items-center gap-2 font-mono text-[11px] text-zn-text-3">
-          <IconArrowLeft size={13} />
-          <Link href="/clients" className="hover:text-zn-text-2">Back to clients</Link>
-        </div>
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-24 rounded-md bg-zn-surface animate-pulse" />
-          ))}
-        </div>
+      <div className="flex h-64 items-center justify-center">
+        <IconLoader2 size={24} className="animate-spin text-zn-text-3" />
       </div>
     )
   }
 
   if (error || !data) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="font-mono text-[11px] text-zn-text-3">Client not found.</div>
-        <Link href="/clients" className="mt-3 text-sm text-zn-gold hover:underline">
-          Back to clients
-        </Link>
+      <div className="card px-6 py-10 text-center">
+        <div className="text-[14px] font-medium text-zn-text-1 mb-2">Client not found</div>
+        <Link href="/clients" className="btn-ghost btn-sm">← Back to clients</Link>
       </div>
     )
   }
 
-  const { client, documents, communications, workflowRuns, upcomingEvents, complianceItems } = data
-  const clientData = client.data as ClientData
-  const fullName = `${clientData.firstName} ${clientData.lastName}`
+  const client     = data.client as any
+  const clientData = client?.data as any ?? {}
+  const fullName   = `${clientData.firstName ?? ''} ${clientData.lastName ?? ''}`.trim()
+  const initials   = `${(clientData.firstName ?? '')[0] ?? ''}${(clientData.lastName ?? '')[0] ?? ''}`.toUpperCase()
+  const status     = STATUS_CONFIG[clientData.status] ?? STATUS_CONFIG.active
+  const kyc        = KYC_CONFIG[clientData.kycStatus] ?? KYC_CONFIG.pending
 
-  const reviewOverdueDays = clientData.annualReviewDue
-    ? daysBetween(clientData.annualReviewDue)
-    : 0
-  const isReviewOverdue = reviewOverdueDays > 0
+  const communications = (data.communications as any[]) ?? []
+  const documents      = (data.documents as any[]) ?? []
+  const runs           = (data.workflowRuns as any[]) ?? []
+  const auditEntries   = (data.auditEntries as any[]) ?? []
+  const complianceItems = (data.complianceItems as any[]) ?? []
+
+  function startEdit() {
+    setForm({
+      firstName:       clientData.firstName ?? '',
+      lastName:        clientData.lastName  ?? '',
+      email:           clientData.email     ?? '',
+      phone:           clientData.phone     ?? '',
+      status:          clientData.status    ?? 'active',
+      kycStatus:       clientData.kycStatus ?? 'pending',
+      clientType:      clientData.clientType ?? 'individual',
+      annualReviewDue: clientData.annualReviewDue ?? '',
+    })
+    setEditing(true)
+  }
+
+  function saveEdit() {
+    updateMutation.mutate({ id, data: { ...clientData, ...form } })
+  }
 
   return (
     <div className="animate-fade-in">
       {/* Back */}
-      <Link
-        href="/clients"
-        className="mb-4 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wide text-zn-text-3 hover:text-zn-text-2"
-      >
+      <Link href="/clients" className="mb-4 inline-flex items-center gap-1.5 text-[12px] text-zn-text-3 hover:text-zn-text-1 transition-colors">
         <IconArrowLeft size={13} /> Back to clients
       </Link>
 
       {/* Header */}
-      <div className="mb-5 flex items-start gap-3.5 border-b border-zn-border pb-5">
-        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-zn-gold-dim bg-zn-gold/8 font-mono text-[15px] font-medium text-zn-gold">
-          {getInitials(fullName)}
+      <div className="mb-5 flex items-start gap-4">
+        <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full text-[18px] font-semibold"
+          style={{ background: 'var(--zn-gold-bg)', color: 'var(--zn-gold-dark)' }}>
+          {initials || <IconUser size={20} />}
         </div>
         <div className="flex-1">
-          <h1 className="text-[18px] font-semibold tracking-tight text-zn-text-1">
-            {fullName}
-          </h1>
-          <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[11px] text-zn-text-3">
-            <span>{clientData.clientType}</span>
-            {clientData.aumBand && <><span className="text-zn-border-2">·</span><span>{clientData.aumBand} AUM</span></>}
-            {clientData.riskProfileVersion && <><span className="text-zn-border-2">·</span><span>Risk v{clientData.riskProfileVersion}</span></>}
-            {isReviewOverdue && (
-              <><span className="text-zn-border-2">·</span>
-              <span className="text-zn-danger">Review {reviewOverdueDays}d overdue</span></>
-            )}
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-[20px] font-semibold tracking-tight text-zn-text-1">{fullName}</h1>
+            <span className={cn('pill', status.pill)}>{status.label}</span>
+            <span className={cn('pill', kyc.pill)}>{kyc.label}</span>
+            {saved && <span className="flex items-center gap-1 text-[12px] text-zn-success"><IconCheck size={12} /> Saved</span>}
+          </div>
+          <div className="mt-1 flex items-center gap-4 text-[12px] text-zn-text-3">
+            {clientData.email && <span className="flex items-center gap-1"><IconMail size={11} />{clientData.email}</span>}
+            {clientData.phone && <span className="flex items-center gap-1"><IconPhone size={11} />{clientData.phone}</span>}
+            <span className="capitalize">{clientData.clientType ?? 'individual'}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="btn-ghost btn-sm flex items-center gap-1.5">
-            <IconNotes size={13} /> Note
-          </button>
-          <Link href="/messages" className="btn-ghost btn-sm flex items-center gap-1.5">
-            <IconMessage size={13} /> Message
-          </Link>
-          <Link href="/audit" className="btn-gold btn-sm flex items-center gap-1.5">
-            <IconPackage size={13} /> Audit package
-          </Link>
+        <div className="flex gap-2">
+          {editing ? (
+            <>
+              <button onClick={saveEdit} disabled={updateMutation.isPending} className="btn-gold btn-sm flex items-center gap-1.5">
+                {updateMutation.isPending ? <IconLoader2 size={12} className="animate-spin" /> : <IconCheck size={12} />} Save
+              </button>
+              <button onClick={() => setEditing(false)} className="btn-ghost btn-sm"><IconX size={12} /></button>
+            </>
+          ) : (
+            <button onClick={startEdit} className="btn-ghost btn-sm flex items-center gap-1.5">
+              <IconEdit size={12} /> Edit
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Tabs — static for now, wire with state later */}
-      <div className="mb-5 flex border-b border-zn-border">
-        {['Overview', 'Documents', 'Notes', 'Communications', 'Workflows'].map((tab, i) => (
-          <div
-            key={tab}
-            className={cn(
-              'cursor-pointer border-b-2 px-4 py-2 text-sm transition-colors',
-              i === 0
-                ? 'border-b-zn-gold font-medium text-zn-gold'
-                : 'border-b-transparent text-zn-text-3 hover:text-zn-text-2',
-            )}
-          >
-            {tab}
-          </div>
-        ))}
+      {/* Tabs */}
+      <div className="mb-5 flex gap-1 border-b border-zn-border">
+        {TABS.map(t => {
+          const Icon = t.icon
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={cn(
+                'flex items-center gap-2 border-b-2 px-4 py-2.5 text-[13px] font-medium transition-all -mb-px',
+                tab === t.id
+                  ? 'border-[var(--zn-gold)] text-[var(--zn-gold-dark)]'
+                  : 'border-transparent text-zn-text-3 hover:text-zn-text-2',
+              )}>
+              <Icon size={13} />{t.label}
+            </button>
+          )
+        })}
       </div>
 
-      {/* Info grid */}
-      <div className="mb-4 grid grid-cols-3 gap-2">
-        <InfoCell
-          label="KYC Status"
-          value={clientData.kycStatus === 'verified'
-            ? `Verified · Exp ${clientData.kycExpiresAt ? formatDate(clientData.kycExpiresAt) : '—'}`
-            : clientData.kycStatus
-          }
-          variant={clientData.kycStatus === 'verified' ? 'success' : 'danger'}
-        />
-        <InfoCell
-          label="Annual review"
-          value={isReviewOverdue
-            ? `${reviewOverdueDays} days overdue`
-            : clientData.annualReviewDue
-            ? `Due ${formatDate(clientData.annualReviewDue)}`
-            : 'Not set'
-          }
-          variant={isReviewOverdue ? 'danger' : 'default'}
-        />
-        <InfoCell
-          label="Risk profile"
-          value={`v${clientData.riskProfileVersion ?? 1} · ${clientData.status}`}
-        />
-        <InfoCell
-          label="Email"
-          value={clientData.email}
-        />
-        <InfoCell
-          label="Phone"
-          value={clientData.phone ?? '—'}
-        />
-        <InfoCell
-          label="Advisor"
-          value="James Wright"
-        />
-      </div>
-
-      {/* Open compliance items */}
-      {complianceItems.length > 0 && (
-        <div className="card mb-4">
-          <div className="card-header">
-            <span className="card-title">Open compliance items</span>
-            <Link href="/compliance" className="card-action">View all</Link>
-          </div>
-          <div className="px-4">
-            {complianceItems.map(item => (
-              <ComplianceRow key={item.id} item={item} />
+      {/* Overview tab */}
+      {tab === 'overview' && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="card">
+            <div className="card-header"><span className="card-title">Client information</span></div>
+            {[
+              { label: 'First name',        key: 'firstName',       value: clientData.firstName ?? '' },
+              { label: 'Last name',         key: 'lastName',        value: clientData.lastName  ?? '' },
+              { label: 'Email',             key: 'email',           value: clientData.email     ?? '' },
+              { label: 'Phone',             key: 'phone',           value: clientData.phone     ?? '' },
+              { label: 'Client type',       key: 'clientType',      value: clientData.clientType ?? 'individual', type: 'select', options: ['individual','trust','entity','foundation'] },
+              { label: 'Status',            key: 'status',          value: clientData.status    ?? 'active', type: 'select', options: ['active','prospect','inactive'] },
+              { label: 'KYC status',        key: 'kycStatus',       value: clientData.kycStatus ?? 'pending', type: 'select', options: ['verified','needs_review','pending','flagged'] },
+              { label: 'Annual review due', key: 'annualReviewDue', value: clientData.annualReviewDue ? formatDate(clientData.annualReviewDue) : '' },
+            ].map(f => (
+              <div key={f.key} className="flex items-center gap-3 border-b border-zn-border px-5 py-3 last:border-0">
+                <div className="w-40 flex-shrink-0 text-[11px] font-semibold uppercase tracking-wide text-zn-text-3">{f.label}</div>
+                {editing ? (
+                  (f as any).type === 'select' ? (
+                    <select value={form[f.key] ?? f.value} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} className="field-select flex-1 text-[13px]">
+                      {(f as any).options.map((o: string) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : (
+                    <input value={form[f.key] ?? f.value} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} className="field-input flex-1 text-[13px]" />
+                  )
+                ) : (
+                  <div className="flex-1 text-[13px] text-zn-text-1">{f.value || <span className="text-zn-text-3 italic">Not set</span>}</div>
+                )}
+              </div>
             ))}
+          </div>
+
+          <div className="space-y-3">
+            {/* Quick stats */}
+            <div className="card">
+              <div className="card-header"><span className="card-title">Activity</span></div>
+              {[
+                { label: 'Total messages',     value: communications.length },
+                { label: 'Documents on file',  value: documents.length },
+                { label: 'Workflow runs',      value: runs.length },
+                { label: 'Audit entries',      value: auditEntries.length },
+              ].map(s => (
+                <div key={s.label} className="flex items-center justify-between border-b border-zn-border px-5 py-3 last:border-0">
+                  <span className="text-[13px] text-zn-text-2">{s.label}</span>
+                  <span className="text-[15px] font-semibold" style={{ color: 'var(--zn-gold-dark)' }}>{s.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Compliance items for this client */}
+            {complianceItems.length > 0 && (
+              <div className="card">
+                <div className="card-header"><span className="card-title">Open compliance items</span></div>
+                {complianceItems.map((item: any) => (
+                  <div key={item.id} className="flex items-start gap-3 border-b border-zn-border px-5 py-3 last:border-0">
+                    <div className="mt-1 h-2 w-2 flex-shrink-0 rounded-full"
+                      style={{ background: item.severity === 'critical' ? 'var(--zn-danger)' : 'var(--zn-warning)' }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] font-medium text-zn-text-1 truncate">{item.title}</div>
+                      {item.due_date && <div className="text-[11px] text-zn-text-3 mt-0.5">Due {formatDate(item.due_date)}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Timeline */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">Activity timeline</span>
-          <Link href="/audit" className="card-action">Full audit log</Link>
-        </div>
-        <div className="px-4">
-          {communications.slice(0, 5).map((comm, i) => (
-            <TimelineEntry
-              key={comm.id}
-              dot={comm.aiFlagged ? 'warn' : 'gold'}
-              action={
-                <>
-                  <strong className="text-zn-text-1">
-                    {comm.direction === 'outbound' ? 'James Wright' : fullName}
-                  </strong>
-                  {' '}
-                  {comm.aiFlagged
-                    ? <span className="text-zn-warning">sent flagged message via {comm.channel}</span>
-                    : `sent message via ${comm.channel}`
-                  }
-                </>
-              }
-              time={new Date(comm.createdAt).toLocaleDateString('en-US', {
-                month: 'short', day: 'numeric', year: 'numeric',
-              }).toUpperCase() + ' · ' + comm.skillSlug?.toUpperCase()}
-            />
-          ))}
-          {communications.length === 0 && (
-            <TimelineEntry
-              dot="ghost"
-              action="No activity recorded yet."
-              time="—"
-            />
+      {/* Communications tab */}
+      {tab === 'messages' && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Communications ({communications.length})</span>
+            <Link href="/messages" className="card-action">Open in messages →</Link>
+          </div>
+          {communications.length === 0 ? (
+            <div className="px-5 py-8 text-center text-[13px] text-zn-text-3">No communications yet</div>
+          ) : (
+            communications.map((c: any) => (
+              <div key={c.id} className="flex items-start gap-3 border-b border-zn-border px-5 py-3.5 last:border-0">
+                <div className={cn('mt-0.5 h-2 w-2 flex-shrink-0 rounded-full', c.ai_flagged ? 'bg-zn-danger' : 'bg-zn-border-2')} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-zn-text-3">{c.channel}</span>
+                    <span className="text-[11px] text-zn-text-3">{c.direction === 'outbound' ? `${me?.fullName ?? 'You'} →` : '← Client'}</span>
+                    {c.ai_flagged && <span className="pill-danger pill text-[10px]">AI flagged</span>}
+                  </div>
+                  <div className="text-[13px] text-zn-text-1 line-clamp-2">{c.body}</div>
+                  <div className="text-[11px] text-zn-text-3 mt-1">{formatDate(c.created_at)}</div>
+                </div>
+              </div>
+            ))
           )}
         </div>
-      </div>
+      )}
+
+      {/* Documents tab */}
+      {tab === 'documents' && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Documents ({documents.length})</span>
+            <Link href="/documents" className="card-action">View all →</Link>
+          </div>
+          {documents.length === 0 ? (
+            <div className="px-5 py-8 text-center text-[13px] text-zn-text-3">No documents on file</div>
+          ) : (
+            documents.map((d: any) => (
+              <div key={d.id} className="flex items-center gap-3 border-b border-zn-border px-5 py-3.5 last:border-0">
+                <IconFileText size={16} className="text-zn-text-3 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-medium text-zn-text-1 truncate">{d.name}</div>
+                  <div className="text-[11px] text-zn-text-3 mt-0.5">{d.doc_type} · {formatDate(d.created_at)}</div>
+                </div>
+                {d.signed_at ? (
+                  <span className="pill-success pill text-[10px]">Signed</span>
+                ) : (
+                  <span className="pill-warn pill text-[10px]">Unsigned</span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Workflows tab */}
+      {tab === 'workflows' && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Onboarding workflows ({runs.length})</span>
+            <Link href="/workflows" className="card-action">View all →</Link>
+          </div>
+          {runs.length === 0 ? (
+            <div className="px-5 py-8 text-center text-[13px] text-zn-text-3">No workflows for this client</div>
+          ) : (
+            runs.map((run: any) => (
+              <Link key={run.id} href={`/workflows/${run.id}/approve`}
+                className="flex items-center gap-4 border-b border-zn-border px-5 py-4 last:border-0 hover:bg-zn-surface-2 transition-colors">
+                <div className="flex-1">
+                  <div className="text-[13px] font-medium text-zn-text-1 capitalize">{run.status?.replace(/_/g, ' ')}</div>
+                  <div className="text-[11px] text-zn-text-3 mt-0.5">Started {formatDate(run.started_at)}</div>
+                  <div className="mt-2 h-1.5 w-full rounded-full bg-zn-surface-3">
+                    <div className="h-full rounded-full" style={{ width: `${run.progressPct ?? 0}%`, background: 'var(--zn-gold)' }} />
+                  </div>
+                </div>
+                <span className="text-[12px] font-mono text-zn-text-3 flex-shrink-0">{run.progressPct ?? 0}%</span>
+              </Link>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Compliance tab */}
+      {tab === 'compliance' && (
+        <div className="card">
+          <div className="card-header"><span className="card-title">Compliance items</span></div>
+          {complianceItems.length === 0 ? (
+            <div className="flex items-center gap-3 px-5 py-6">
+              <IconCheck size={18} style={{ color: 'var(--zn-success)' }} />
+              <div className="text-[13px] text-zn-text-1">No open compliance items for this client</div>
+            </div>
+          ) : (
+            complianceItems.map((item: any) => (
+              <div key={item.id} className="flex items-start gap-3 border-b border-zn-border px-5 py-4 last:border-0">
+                <div className="mt-1 h-2 w-2 flex-shrink-0 rounded-full"
+                  style={{ background: item.severity === 'critical' ? 'var(--zn-danger)' : 'var(--zn-warning)' }} />
+                <div className="flex-1">
+                  <div className="text-[13px] font-medium text-zn-text-1">{item.title}</div>
+                  {item.description && <div className="text-[12px] text-zn-text-3 mt-0.5">{item.description}</div>}
+                  {item.due_date && <div className="text-[11px] text-zn-text-3 mt-1 flex items-center gap-1"><IconListCheck size={10} /> Due {formatDate(item.due_date)}</div>}
+                </div>
+                <span className={item.severity === 'critical' ? 'pill-danger pill' : 'pill-warn pill'}>{item.severity}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Tasks tab */}
+      {tab === 'tasks' && (
+        <div className="card">
+          <div className="card-header"><span className="card-title">Tasks</span></div>
+          <div className="px-5 py-8 text-center text-[13px] text-zn-text-3">
+            <Link href="/tasks" className="card-action">View all tasks →</Link>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -192,16 +192,41 @@ async function downloadAndStoreRecording(
   }
 }
 
-// ── Transcribe with Whisper ────────────────────────────────
+// ── Transcribe with Deepgram / Whisper ────────────────────
 
 async function transcribeRecording(
   audioBuffer: ArrayBuffer
 ): Promise<string | null> {
   try {
-    // Note: Anthropic doesn't have audio transcription.
-    // In production use OpenAI Whisper API or Deepgram.
-    // For now, we use Zoom's built-in transcription if available.
-    // This is a placeholder for Phase 2 Whisper integration.
+    // Use Deepgram API if configured (recommended for production)
+    if (process.env.DEEPGRAM_API_KEY) {
+      const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&diarize=true', {
+        method:  'POST',
+        headers: {
+          Authorization:  'Token ' + process.env.DEEPGRAM_API_KEY,
+          'Content-Type': 'audio/mp4',
+        },
+        body: Buffer.from(audioBuffer),
+      })
+      const result = await response.json()
+      return result?.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? null
+    }
+
+    // Fallback: OpenAI Whisper
+    if (process.env.OPENAI_API_KEY) {
+      const formData = new FormData()
+      formData.append('file', new Blob([audioBuffer], { type: 'audio/mp4' }), 'recording.mp4')
+      formData.append('model', 'whisper-1')
+      formData.append('response_format', 'text')
+
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method:  'POST',
+        headers: { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY },
+        body: formData,
+      })
+      return await response.text()
+    }
+
     return null
   } catch {
     return null
