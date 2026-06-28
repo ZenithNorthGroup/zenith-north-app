@@ -13,7 +13,7 @@
  */
 
 import { z } from 'zod'
-import { router, protectedProcedure } from '@/lib/trpc'
+import { router, protectedProcedure, withPermission } from '@/lib/trpc'
 import { db, calendarEvents, complianceItems, workflowRuns, communications } from '@/lib/db'
 import { writeAudit } from '@/lib/audit'
 import { eq, and, isNull, desc, asc, lte, gte, sql, or } from 'drizzle-orm'
@@ -80,7 +80,7 @@ export const tasksRouter = router({
    * Combines calendar events with unreviewed AI flags
    * and stalled workflow runs.
    */
-  list: protectedProcedure
+  list: withPermission('tasks.view')
     .input(z.object({
       filter: z.enum(['all', 'overdue', 'today', 'done']).default('all'),
     }))
@@ -187,7 +187,7 @@ export const tasksRouter = router({
   /**
    * Create a manual task.
    */
-  create: protectedProcedure
+  create: withPermission('tasks.create')
     .input(z.object({
       title:    z.string().min(1),
       clientId: z.string().uuid().optional(),
@@ -223,7 +223,7 @@ export const tasksRouter = router({
   /**
    * Mark a calendar-based task complete.
    */
-  complete: protectedProcedure
+  complete: withPermission('tasks.complete')
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await db
@@ -248,7 +248,7 @@ export const tasksRouter = router({
   /**
    * Summary counts for the sidebar and stat cards.
    */
-  summary: protectedProcedure
+  summary: withPermission('tasks.view')
     .query(async ({ ctx }) => {
       const tenantId = ctx.tenant.id
 

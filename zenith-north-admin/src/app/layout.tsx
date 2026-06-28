@@ -16,6 +16,7 @@ const NAV = [
   { href: '/channels',   label: 'Channels',     icon: '⬡' },
   { href: '/errors',     label: 'Errors',       icon: '⬡' },
   { href: '/webhooks',   label: 'Webhooks',     icon: '⬡' },
+  { href: '/roles',      label: 'Roles',        icon: '🔐' },
   { href: '/system',     label: 'System',       icon: '⬡' },
 ]
 

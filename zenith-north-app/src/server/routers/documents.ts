@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod'
-import { router, protectedProcedure } from '@/lib/trpc'
+import { router, protectedProcedure, withPermission } from '@/lib/trpc'
 import { db, documents } from '@/lib/db'
 import { eq, and, isNull, desc, sql, like, or } from 'drizzle-orm'
 
@@ -15,7 +15,7 @@ export const documentsRouter = router({
   /**
    * List documents for the tenant, optionally filtered by client or type.
    */
-  list: protectedProcedure
+  list: withPermission('documents.view')
     .input(z.object({
       clientId: z.string().uuid().optional(),
       docType:  z.string().optional(),
@@ -60,7 +60,7 @@ export const documentsRouter = router({
   /**
    * Summary stats for the documents page header.
    */
-  summary: protectedProcedure
+  summary: withPermission('documents.view')
     .query(async ({ ctx }) => {
       const result = await db.execute(sql`
         SELECT

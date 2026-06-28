@@ -14,7 +14,7 @@
  */
 
 import { z } from 'zod'
-import { router, protectedProcedure, adminProcedure } from '@/lib/trpc'
+import { router, protectedProcedure, adminProcedure, withPermission } from '@/lib/trpc'
 import { db, communications } from '@/lib/db'
 import { writeAudit, AUDIT_ACTIONS } from '@/lib/audit'
 import { eq, and, desc, asc, isNull } from 'drizzle-orm'
@@ -90,7 +90,7 @@ export const messagesRouter = router({
    * List all threads for this tenant.
    * Returns one row per thread (latest message).
    */
-  listThreads: protectedProcedure
+  listThreads: withPermission('messages.view')
     .query(async ({ ctx }) => {
       // Get distinct threads with latest message + client name
       const threads = await db.execute(sql`
@@ -129,7 +129,7 @@ export const messagesRouter = router({
   /**
    * Get all messages in a thread.
    */
-  getThread: protectedProcedure
+  getThread: withPermission('messages.view')
     .input(z.object({
       threadId: z.string().uuid(),
     }))
@@ -148,7 +148,7 @@ export const messagesRouter = router({
    * Get all communications for a specific client.
    * Used on the Client 360 view and for exam packages.
    */
-  getClientThread: protectedProcedure
+  getClientThread: withPermission('messages.view')
     .input(z.object({
       clientId: z.string().uuid(),
       limit:    z.number().default(50),
@@ -169,7 +169,7 @@ export const messagesRouter = router({
    * Send a message to a client.
    * Stores, encrypts, and queues AI scan — never blocks on scan.
    */
-  send: protectedProcedure
+  send: withPermission('messages.send')
     .input(z.object({
       clientId:  z.string().uuid(),
       threadId:  z.string().uuid().optional(),
@@ -276,7 +276,7 @@ export const messagesRouter = router({
    * Log an inbound message from a client.
    * Used when a client replies via email or the platform notifies us.
    */
-  logInbound: protectedProcedure
+  logInbound: withPermission('messages.view')
     .input(z.object({
       clientId:  z.string().uuid(),
       threadId:  z.string().uuid(),
@@ -314,7 +314,7 @@ export const messagesRouter = router({
    * Review a flagged message — mark as reviewed.
    * Requires admin or CCO role.
    */
-  reviewFlag: adminProcedure
+  reviewFlag: withPermission('messages.review_flag')
     .input(z.object({
       messageId: z.string().uuid(),
       notes:     z.string().optional(),
@@ -353,7 +353,7 @@ export const messagesRouter = router({
    * All flagged messages across all clients.
    * Used by the CCO compliance view.
    */
-  listFlagged: adminProcedure
+  listFlagged: withPermission('messages.view_flagged')
     .input(z.object({
       reviewed: z.boolean().optional(),
       limit:    z.number().default(50),
@@ -376,7 +376,7 @@ export const messagesRouter = router({
   /**
    * Summary stats for the sidebar badge and dashboard.
    */
-  summary: protectedProcedure
+  summary: withPermission('messages.view')
     .query(async ({ ctx }) => {
       const flagged = await db.query.communications.findMany({
         where: and(

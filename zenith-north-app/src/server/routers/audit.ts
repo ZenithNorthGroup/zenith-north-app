@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod'
-import { router, protectedProcedure, adminProcedure } from '@/lib/trpc'
+import { router, protectedProcedure, adminProcedure, withPermission } from '@/lib/trpc'
 import { db, auditLog, clients, communications, documents, workflowRuns } from '@/lib/db'
 import { writeAudit } from '@/lib/audit'
 import { eq, and, desc, asc, gte, lte, like, or, inArray, sql, isNull } from 'drizzle-orm'
@@ -170,7 +170,7 @@ export const auditRouter = router({
    * List audit log entries — paginated, filterable.
    * Used by the audit center log viewer.
    */
-  listEntries: adminProcedure
+  listEntries: withPermission('audit.view')
     .input(z.object({
       skillSlug: z.string().optional(),
       entityType: z.string().optional(),
@@ -220,7 +220,7 @@ export const auditRouter = router({
    * Get all audit entries for a specific entity.
    * Used by the Client 360 activity timeline.
    */
-  getEntityHistory: protectedProcedure
+  getEntityHistory: withPermission('audit.view')
     .input(z.object({
       entityType: z.string(),
       entityId:   z.string().uuid(),
@@ -242,7 +242,7 @@ export const auditRouter = router({
    * Generate a complete exam package.
    * One click — produces every record an SEC examiner would request.
    */
-  generateExamPackage: adminProcedure
+  generateExamPackage: withPermission('audit.export')
     .input(z.object({
       clientId: z.string().uuid().optional(),
       dateFrom: z.string().optional(),
@@ -275,7 +275,7 @@ export const auditRouter = router({
   /**
    * Summary stats for the audit center dashboard.
    */
-  summary: adminProcedure
+  summary: withPermission('audit.view')
     .query(async ({ ctx }) => {
       const [total, today, flagged, skills] = await Promise.all([
         // Total audit entries ever

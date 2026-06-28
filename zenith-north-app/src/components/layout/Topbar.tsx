@@ -1,80 +1,85 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { IconSearch, IconBell, IconSettings } from '@tabler/icons-react'
-import Link from 'next/link'
+import { IconSearch, IconBell, IconSparkles } from '@tabler/icons-react'
 
-const BREADCRUMBS: Record<string, string[]> = {
-  '/dashboard':   ['Dashboard'],
-  '/clients':     ['Clients'],
-  '/workflows':   ['Workflows'],
-  '/tasks':       ['Tasks'],
-  '/calendar':    ['Calendar'],
-  '/messages':    ['Messages'],
-  '/compliance':  ['Compliance'],
-  '/documents':   ['Documents'],
-  '/audit':       ['Audit center'],
-  '/builder':     ['Settings', 'Workflow builder'],
-  '/ai':          ['AI assistant'],
-  '/reports':     ['Reports'],
+const PAGE_TITLES: Record<string, string> = {
+  '/dashboard':    'Dashboard',
+  '/clients':      'Clients',
+  '/workflows':    'Workflows',
+  '/messages':     'Messages',
+  '/calendar':     'Calendar',
+  '/tasks':        'Tasks',
+  '/compliance':   'Compliance',
+  '/documents':    'Documents',
+  '/audit':        'Audit center',
+  '/ai':           'AI assistant',
+  '/reports':      'Reports',
+  '/integrations': 'Integrations',
+  '/import':       'Import data',
 }
 
 export default function Topbar() {
   const pathname = usePathname()
-
-  // Match exact or prefix
-  const crumbs = BREADCRUMBS[pathname]
-    ?? Object.entries(BREADCRUMBS).find(([k]) => pathname.startsWith(k))?.[1]
-    ?? ['Dashboard']
+  const base = '/' + (pathname.split('/')[1] ?? '')
+  const title = PAGE_TITLES[base] ?? 'Zenith North'
 
   return (
-    <header className="flex h-[50px] flex-shrink-0 items-center gap-3.5 border-b border-zn-border bg-zn-surface px-5">
+    <div
+      className="flex h-[52px] flex-shrink-0 items-center justify-between px-6"
+      style={{
+        background: '#fff',
+        borderBottom: '1px solid var(--zn-border)',
+      }}
+    >
+      {/* Page title */}
+      <h1 className="text-[15px] font-semibold text-zn-text-1 tracking-tight">
+        {title}
+      </h1>
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 text-sm">
-        {crumbs.map((crumb, i) => (
-          <span key={crumb} className="flex items-center gap-1.5">
-            {i < crumbs.length - 1 ? (
-              <>
-                <span className="text-zn-text-3 cursor-pointer hover:text-zn-text-2">
-                  {crumb}
-                </span>
-                <span className="text-zn-text-3 text-[10px]">›</span>
-              </>
-            ) : (
-              <span className="font-medium text-zn-text-1">{crumb}</span>
-            )}
-          </span>
-        ))}
-      </div>
-
-      <div className="ml-auto flex items-center gap-2">
+      {/* Right actions */}
+      <div className="flex items-center gap-2">
         {/* Search */}
-        <Link
-          href="/ai"
-          className="flex w-[220px] cursor-text items-center gap-1.5 rounded border border-zn-border bg-zn-surface-2 px-3 py-1.5 text-sm text-zn-text-3 transition-colors hover:border-zn-border-2"
+        <div
+          className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-[12px] cursor-pointer transition-colors"
+          style={{
+            background: 'var(--zn-surface-2)',
+            borderColor: 'var(--zn-border)',
+            color: 'var(--zn-text-3)',
+          }}
         >
           <IconSearch size={13} />
-          <span>Search clients, docs...</span>
-          <span className="ml-auto rounded border border-zn-border bg-zn-surface-3 px-1 py-0.5 font-mono text-[9px]">
+          <span>Search...</span>
+          <kbd
+            className="rounded px-1 py-0.5 text-[10px]"
+            style={{ background: 'var(--zn-border)', color: 'var(--zn-text-3)' }}
+          >
             ⌘K
-          </span>
-        </Link>
+          </kbd>
+        </div>
 
-        {/* Notifications */}
-        <button className="relative flex h-[30px] w-[30px] items-center justify-center rounded border border-transparent text-zn-text-3 transition-all hover:border-zn-border hover:bg-zn-surface-2 hover:text-zn-text-2">
-          <IconBell size={15} />
-          <span className="absolute right-[5px] top-[5px] h-[6px] w-[6px] rounded-full border-[1.5px] border-zn-surface bg-zn-danger" />
+        {/* AI button */}
+        <button className="btn-gold btn-sm flex items-center gap-1.5">
+          <IconSparkles size={13} />
+          Ask AI
         </button>
 
-        {/* Settings */}
-        <Link
-          href="/builder"
-          className="flex h-[30px] w-[30px] items-center justify-center rounded border border-transparent text-zn-text-3 transition-all hover:border-zn-border hover:bg-zn-surface-2 hover:text-zn-text-2"
+        {/* Notifications */}
+        <button
+          className="relative flex h-8 w-8 items-center justify-center rounded-md border transition-colors"
+          style={{
+            background: 'var(--zn-surface-2)',
+            borderColor: 'var(--zn-border)',
+            color: 'var(--zn-text-2)',
+          }}
         >
-          <IconSettings size={15} />
-        </Link>
+          <IconBell size={15} />
+          <span
+            className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full"
+            style={{ background: 'var(--zn-danger)' }}
+          />
+        </button>
       </div>
-    </header>
+    </div>
   )
 }

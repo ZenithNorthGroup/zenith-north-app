@@ -19,7 +19,7 @@
  */
 
 import { z } from 'zod'
-import { router, protectedProcedure, adminProcedure } from '@/lib/trpc'
+import { router, protectedProcedure, adminProcedure, withPermission } from '@/lib/trpc'
 import {
   db,
   workflows,
@@ -180,7 +180,7 @@ export const workflowsRouter = router({
    * List all workflow definitions for this tenant.
    * Used by the workflow builder.
    */
-  listDefinitions: protectedProcedure
+  listDefinitions: withPermission('workflows.view')
     .query(async ({ ctx }) => {
       return db.query.workflows.findMany({
         where: and(
@@ -194,7 +194,7 @@ export const workflowsRouter = router({
   /**
    * Get a single workflow definition with its steps.
    */
-  getDefinition: protectedProcedure
+  getDefinition: withPermission('workflows.view')
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       return db.query.workflows.findFirst({
@@ -210,7 +210,7 @@ export const workflowsRouter = router({
    * Create a new workflow definition.
    * Used by the workflow builder.
    */
-  createDefinition: adminProcedure
+  createDefinition: withPermission('settings.manage_integrations')
     .input(z.object({
       slug:    z.string().min(1),
       name:    z.string().min(1),
@@ -259,7 +259,7 @@ export const workflowsRouter = router({
    * Update a workflow step.
    * Used by the workflow builder inspector panel.
    */
-  updateStep: adminProcedure
+  updateStep: withPermission('settings.manage_integrations')
     .input(z.object({
       stepId:    z.string().uuid(),
       name:      z.string().optional(),
@@ -291,7 +291,7 @@ export const workflowsRouter = router({
    * List all active workflow runs for this tenant.
    * Used by the workflows dashboard page.
    */
-  listRuns: protectedProcedure
+  listRuns: withPermission('workflows.view')
     .input(z.object({
       status:   z.string().optional(),
       entityId: z.string().uuid().optional(),
@@ -378,7 +378,7 @@ export const workflowsRouter = router({
    * Get a single run with full step detail.
    * Used by the run detail / approval view.
    */
-  getRun: protectedProcedure
+  getRun: withPermission('workflows.view')
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const run = await db.query.workflowRuns.findFirst({
@@ -418,7 +418,7 @@ export const workflowsRouter = router({
    * Start a new workflow run for a client.
    * Triggered automatically on client.created or manually.
    */
-  startRun: protectedProcedure
+  startRun: withPermission('workflows.create')
     .input(z.object({
       workflowSlug: z.string(),
       entityType:   z.string().default('client'),
@@ -504,7 +504,7 @@ export const workflowsRouter = router({
    * The most important mutation in the platform.
    * Checks policy gate, marks complete, updates run status.
    */
-  advanceStep: protectedProcedure
+  advanceStep: withPermission('workflows.advance')
     .input(z.object({
       runId:     z.string().uuid(),
       stepId:    z.string().uuid(),
@@ -630,7 +630,7 @@ export const workflowsRouter = router({
    * Internal approval — approve, reject, or approve with conditions.
    * Requires admin or CCO role.
    */
-  processApproval: adminProcedure
+  processApproval: withPermission('workflows.approve')
     .input(z.object({
       runId:         z.string().uuid(),
       stepId:        z.string().uuid(),
@@ -776,7 +776,7 @@ export const workflowsRouter = router({
    * Dashboard summary — counts by status.
    * Used by the sidebar badge and dashboard stat card.
    */
-  summary: protectedProcedure
+  summary: withPermission('workflows.view')
     .query(async ({ ctx }) => {
       const runs = await db.query.workflowRuns.findMany({
         where: and(

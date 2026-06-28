@@ -9,38 +9,44 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Brand colors from ZN logo
         zn: {
-          black:       '#0E0E0E',
-          surface:     '#131313',
-          'surface-2': '#1A1A1A',
-          'surface-3': '#222222',
-          border:      '#2A2A2A',
-          'border-2':  '#363636',
-          // Gold — from Z letterform
+          // Page / surface
+          page:        '#F4F5F7',
+          surface:     '#FFFFFF',
+          'surface-2': '#F8F9FA',
+          'surface-3': '#F0F1F3',
+          // Borders
+          border:      '#E5E7EB',
+          'border-2':  '#D1D5DB',
+          // Gold (Z letterform — brand primary)
           gold:        '#C9A96E',
+          'gold-dark': '#A8843A',
           'gold-dim':  '#8B7149',
-          // Silver — from N letterform
-          silver:      '#D4D8DC',
-          'silver-dim':'#8A9099',
-          // Text scale
-          'text-1':    '#E8EAE8',
-          'text-2':    '#8A9099',
-          'text-3':    '#4A5260',
+          // Silver (N letterform)
+          silver:      '#6B7280',
+          'silver-dim':'#9CA3AF',
+          // Text
+          'text-1':    '#111827',
+          'text-2':    '#4B5563',
+          'text-3':    '#9CA3AF',
+          // Sidebar
+          sidebar:     '#111827',
+          'sidebar-2': '#1F2937',
           // Semantic
-          success:     '#4D9E6E',
-          warning:     '#C4882A',
-          danger:      '#B84040',
+          success:     '#059669',
+          warning:     '#D97706',
+          danger:      '#DC2626',
         }
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-mono)', 'Fira Code', 'monospace'],
+        mono: ['var(--font-mono)', 'monospace'],
       },
       borderRadius: {
-        DEFAULT: '4px',
-        md: '6px',
-        lg: '10px',
+        DEFAULT: '6px',
+        md:  '8px',
+        lg:  '12px',
+        xl:  '16px',
       },
       fontSize: {
         '2xs': ['10px', '14px'],
@@ -51,20 +57,6 @@ const config: Config = {
         lg:    ['16px', '24px'],
         xl:    ['18px', '26px'],
         '2xl': ['20px', '28px'],
-      },
-      keyframes: {
-        pulse: {
-          '0%':   { opacity: '0.8', transform: 'scale(0.6)' },
-          '100%': { opacity: '0',   transform: 'scale(2)' },
-        },
-        'fade-in': {
-          '0%':   { opacity: '0', transform: 'translateY(4px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        },
-      },
-      animation: {
-        'ping-slow':  'pulse 2.8s ease-out infinite',
-        'fade-in':    'fade-in 0.15s ease-out',
       },
     },
   },

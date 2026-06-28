@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod'
-import { router, protectedProcedure } from '@/lib/trpc'
+import { router, protectedProcedure, withPermission } from '@/lib/trpc'
 import { db, clients } from '@/lib/db'
 import { writeAudit, AUDIT_ACTIONS } from '@/lib/audit'
 import { eq, and, desc, sql } from 'drizzle-orm'
@@ -63,7 +63,7 @@ export const clientsRouter = router({
    * List all active clients for the current tenant.
    * Returns latest version of each client.
    */
-  list: protectedProcedure
+  list: withPermission('clients.view')
     .input(z.object({
       status:   z.string().optional(),
       search:   z.string().optional(),
@@ -72,14 +72,21 @@ export const clientsRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       const { tenantId } = ctx.tenant
+      const clientScope = (ctx.user as any).clientScope ?? 'all'
+      const userId      = ctx.user.id
 
-      // Subquery: get max version per client ID
-      // Then join back to get full row
+      // Scope filter — advisors with 'own' scope only see their assigned clients
+      const scopeFilter =
+        clientScope === 'own' && !ctx.permissions.has('clients.view_all')
+          ? sql`AND (assigned_advisor_id = ${userId} OR created_by = ${userId})`
+          : sql``
+
       const result = await db.execute(sql`
         SELECT DISTINCT ON (id) *
         FROM clients
         WHERE tenant_id = ${tenantId}
           AND archived_at IS NULL
+          ${scopeFilter}
           ${input.status
             ? sql`AND data->>'status' = ${input.status}`
             : sql``
@@ -103,7 +110,7 @@ export const clientsRouter = router({
   /**
    * Get a single client (latest version).
    */
-  get: protectedProcedure
+  get: withPermission('clients.view')
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const client = await getCurrentClient(ctx.tenant.id, input.id)
@@ -115,7 +122,7 @@ export const clientsRouter = router({
    * Get full version history of a client.
    * Used for audit packages and exam prep.
    */
-  history: protectedProcedure
+  history: withPermission('clients.view')
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       return db.query.clients.findMany({
@@ -131,7 +138,7 @@ export const clientsRouter = router({
    * Create a new client (version 1).
    * Automatically writes audit log entry.
    */
-  create: protectedProcedure
+  create: withPermission('clients.create')
     .input(ClientDataSchema)
     .mutation(async ({ ctx, input }) => {
       const clientId = crypto.randomUUID()
@@ -159,7 +166,7 @@ export const clientsRouter = router({
    * Update a client — inserts a NEW VERSION, never updates in place.
    * Previous version remains in DB permanently.
    */
-  update: protectedProcedure
+  update: withPermission('clients.edit')
     .input(z.object({
       id:   z.string().uuid(),
       data: ClientDataSchema.partial(),
@@ -195,7 +202,7 @@ export const clientsRouter = router({
   /**
    * Archive a client (soft delete — never hard delete).
    */
-  archive: protectedProcedure
+  archive: withPermission('clients.archive')
     .input(z.object({
       id:     z.string().uuid(),
       reason: z.string().min(1),
@@ -230,7 +237,7 @@ export const clientsRouter = router({
    * Client 360 — everything about a client in one query.
    * Used for the Client 360 view and audit packages.
    */
-  get360: protectedProcedure
+  get360: withPermission('clients.view_360')
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const tenantId = ctx.tenant.id
@@ -301,6 +308,33 @@ export const clientsRouter = router({
         workflowRuns,
         upcomingEvents,
         complianceItems: compItems,
+      }
+    }),
+})
+
+// ── getMe — current user's role, permissions, and profile ─
+
+export const meRouter = router({
+  getMe: protectedProcedure
+    .query(async ({ ctx }) => {
+      const customRoles = (ctx.tenant.config as any)?.customRoles ?? []
+      const { resolvePermissions } = await import('@/lib/auth/permissions')
+      const permissions = resolvePermissions(
+        ctx.user.role,
+        (ctx.user.permissions as string[] | null) ?? [],
+        customRoles,
+      )
+
+      return {
+        id:           ctx.user.id,
+        fullName:     ctx.user.fullName,
+        email:        ctx.user.email,
+        role:         ctx.user.role,
+        isCco:        (ctx.user as any).isCco ?? false,
+        clientScope:  (ctx.user as any).clientScope ?? 'all',
+        permissions:  Array.from(permissions),
+        tenantName:   ctx.tenant.name,
+        tenantSlug:   ctx.tenant.slug,
       }
     }),
 })

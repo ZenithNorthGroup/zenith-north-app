@@ -4,7 +4,7 @@
  */
 
 import { router } from '@/lib/trpc'
-import { clientsRouter }    from './routers/clients'
+import { clientsRouter, meRouter } from './routers/clients'
 import { complianceRouter } from './routers/compliance'
 import { workflowsRouter }  from './routers/workflows'
 import { messagesRouter }   from './routers/messages'
@@ -15,6 +15,7 @@ import { documentsRouter }  from './routers/documents'
 
 export const appRouter = router({
   clients:    clientsRouter,
+  me:         meRouter,
   compliance: complianceRouter,
   workflows:  workflowsRouter,
   messages:   messagesRouter,

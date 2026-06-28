@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod'
-import { router, protectedProcedure, adminProcedure } from '@/lib/trpc'
+import { router, protectedProcedure, adminProcedure, withPermission } from '@/lib/trpc'
 import { db, complianceItems, calendarEvents } from '@/lib/db'
 import { writeAudit, AUDIT_ACTIONS } from '@/lib/audit'
 import { eq, and, isNull, or, lt, gte, sql, desc } from 'drizzle-orm'
@@ -20,7 +20,7 @@ export const complianceRouter = router({
    * Dashboard — all open items + stats + upcoming filings.
    * This is the main compliance view query.
    */
-  dashboard: protectedProcedure
+  dashboard: withPermission('compliance.view')
     .query(async ({ ctx }) => {
       const tenantId = ctx.tenant.id
       const now = new Date()
@@ -93,7 +93,7 @@ export const complianceRouter = router({
    * Resolve a compliance item.
    * Writes audit log entry.
    */
-  resolve: adminProcedure
+  resolve: withPermission('compliance.resolve')
     .input(z.object({
       id:    z.string().uuid(),
       notes: z.string().optional(),
@@ -126,7 +126,7 @@ export const complianceRouter = router({
    * Snooze a compliance item.
    * CCO can acknowledge and defer for up to 14 days.
    */
-  snooze: adminProcedure
+  snooze: withPermission('compliance.snooze')
     .input(z.object({
       id:      z.string().uuid(),
       days:    z.number().min(1).max(14),
@@ -160,7 +160,7 @@ export const complianceRouter = router({
    * Policy check — called before any workflow step advances.
    * Returns whether the step is allowed and what's blocking it.
    */
-  checkPolicy: protectedProcedure
+  checkPolicy: withPermission('compliance.view')
     .input(z.object({
       runId:      z.string().uuid(),
       stepId:     z.string().uuid(),

@@ -59,15 +59,26 @@ export type NewTenant = typeof tenants.$inferInsert
 // ─────────────────────────────────────────────────────────
 
 export const users = pgTable('users', {
-  id:          uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  tenantId:    uuid('tenant_id').notNull().references(() => tenants.id),
-  clerkUserId: text('clerk_user_id').notNull().unique(), // Clerk user ID
-  email:       text('email').notNull(),
-  fullName:    text('full_name').notNull(),
-  role:        text('role').notNull().default('member'), // 'owner'|'admin'|'cco'|'member'|'viewer'
-  lastSeenAt:  timestamp('last_seen_at'),
-  createdAt:   timestamp('created_at').notNull().defaultNow(),
-  archivedAt:  timestamp('archived_at'),
+  id:            uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId:      uuid('tenant_id').notNull().references(() => tenants.id),
+  clerkUserId:   text('clerk_user_id').notNull().unique(),
+  email:         text('email').notNull(),
+  fullName:      text('full_name').notNull(),
+  // Role: 'owner' | 'cco' | 'advisor' | 'operations' | 'associate'
+  role:          text('role').notNull().default('advisor'),
+  // Whether this user is the designated CCO (required by SEC)
+  isCco:         boolean('is_cco').notNull().default(false),
+  // Client scope: 'all' | 'own' | 'assigned'
+  clientScope:   text('client_scope').notNull().default('all'),
+  // Fine-grained permission overrides as JSON
+  permissions:   jsonb('permissions').default('{}'),
+  // Avatar / profile
+  avatarUrl:     text('avatar_url'),
+  title:         text('title'),                     // e.g. "Senior Advisor"
+  phone:         text('phone'),
+  lastSeenAt:    timestamp('last_seen_at'),
+  createdAt:     timestamp('created_at').notNull().defaultNow(),
+  archivedAt:    timestamp('archived_at'),
 }, (t) => ({
   tenantEmailIdx: uniqueIndex('users_tenant_email_idx').on(t.tenantId, t.email),
 }))
@@ -117,11 +128,12 @@ export const tenantSkills = pgTable('tenant_skills', {
  *   - Exact state at any point in time (for exam packages)
  */
 export const clients = pgTable('clients', {
-  id:          uuid('id').notNull().default(sql`gen_random_uuid()`),
-  tenantId:    uuid('tenant_id').notNull().references(() => tenants.id),
-  version:     integer('version').notNull().default(1),
-  data:        jsonb('data').notNull(),  // all client fields as JSON
-  createdBy:   uuid('created_by').references(() => users.id),
+  id:                 uuid('id').notNull().default(sql`gen_random_uuid()`),
+  tenantId:           uuid('tenant_id').notNull().references(() => tenants.id),
+  version:            integer('version').notNull().default(1),
+  data:               jsonb('data').notNull(),  // all client fields as JSON
+  assignedAdvisorId:  uuid('assigned_advisor_id').references(() => users.id),
+  createdBy:          uuid('created_by').references(() => users.id),
   createdAt:   timestamp('created_at').notNull().defaultNow(),
   archivedAt:  timestamp('archived_at'),
 }, (t) => ({

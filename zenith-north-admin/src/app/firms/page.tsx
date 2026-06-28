@@ -36,7 +36,7 @@ export default function FirmsPage() {
             {tenants.length} TOTAL · {tenants.filter(t => t.status === 'active').length} ACTIVE
           </div>
         </div>
-        <Link href="/firms/new" className="btn btn-gold">+ New firm</Link>
+        <Link href="/firms/setup" className="btn btn-gold">+ New firm setup</Link>
       </div>
 
       {/* Filters */}
