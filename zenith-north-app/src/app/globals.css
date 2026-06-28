@@ -96,10 +96,10 @@ html, body {
   .pill {
     @apply inline-flex items-center rounded px-2 py-0.5 font-mono text-2xs font-medium border;
   }
-  .pill-danger  { @apply pill bg-zn-danger/10 border-zn-danger/25 text-zn-danger; }
-  .pill-warn    { @apply pill bg-zn-warning/10 border-zn-warning/25 text-zn-warning; }
-  .pill-success { @apply pill bg-zn-success/10 border-zn-success/25 text-zn-success; }
-  .pill-gold    { @apply pill bg-zn-gold/8 border-zn-gold/20 text-zn-gold; }
+  .pill-warn    { background: rgba(232,168,56,0.1); border-color: rgba(232,168,56,0.25); @apply pill text-zn-warning; }
+  .pill-success { background: rgba(76,175,130,0.1); border-color: rgba(76,175,130,0.25); @apply pill text-zn-success; }
+  .pill-danger  { background: rgba(224,82,82,0.1); border-color: rgba(224,82,82,0.25); @apply pill text-zn-danger; }
+  .pill-gold    { background: rgba(201,169,110,0.08); border-color: rgba(201,169,110,0.2); @apply pill text-zn-gold; }
   .pill-ghost   { @apply pill bg-transparent border-zn-border text-zn-text-3; }
 
   /* ── Cards ── */
