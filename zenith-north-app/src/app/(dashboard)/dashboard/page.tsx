@@ -411,14 +411,17 @@ export default function DashboardPage() {
       </div>
 
       {/* Role-specific dashboard */}
-      {role === 'owner'      && <OwnerDashboard      data={complianceData} isLoading={isLoading} />}
-      {role === 'cco'        && <CCODashboard        data={complianceData} isLoading={isLoading} />}
-      {role === 'advisor'    && <AdvisorDashboard    data={complianceData} isLoading={isLoading} userName="James Wright" />}
-      {role === 'operations' && <OperationsDashboard data={complianceData} isLoading={isLoading} />}
-      {role === 'associate'  && <AssociateDashboard  data={complianceData} isLoading={isLoading} />}
-
-      {/* If owner — also show owner default */}
-      {!['owner','cco','advisor','operations','associate'].includes(role) && (
+      {role === 'owner' ? (
+        <OwnerDashboard data={complianceData} isLoading={isLoading} />
+      ) : role === 'cco' ? (
+        <CCODashboard data={complianceData} isLoading={isLoading} />
+      ) : role === 'advisor' ? (
+        <AdvisorDashboard data={complianceData} isLoading={isLoading} userName="James Wright" />
+      ) : role === 'operations' ? (
+        <OperationsDashboard data={complianceData} isLoading={isLoading} />
+      ) : role === 'associate' ? (
+        <AssociateDashboard data={complianceData} isLoading={isLoading} />
+      ) : (
         <OwnerDashboard data={complianceData} isLoading={isLoading} />
       )}
     </div>
