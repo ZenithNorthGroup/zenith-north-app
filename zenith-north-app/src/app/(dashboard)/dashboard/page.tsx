@@ -172,7 +172,7 @@ export default function DashboardPage() {
       <div className="mb-5 grid grid-cols-4 gap-2.5">
         <StatCard
           label="Active clients"
-          value={isLoading ? '—' : (data?.activeClients ?? '—')}
+          value={isLoading ? '—' : (complianceData?.activeClients ?? '—')}
           delta="+3 this month"
           variant="gold"
           href="/clients"
