@@ -1,290 +1,133 @@
 /**
- * ZENITH NORTH — AI Assistant API
- *
  * POST /api/ai/ask
- *
- * Answers natural language questions about the firm's data.
- * Has access to:
- *   - All clients (names, status, KYC, review dates)
- *   - All compliance items (open, resolved, critical)
- *   - All workflow runs (stalled, awaiting, complete)
- *   - All flagged communications
- *   - Audit log summary
- *   - Upcoming calendar events
- *
- * The AI is given a snapshot of the firm's current state as
- * context, then answers the advisor's question.
- *
- * PRIVACY: No client PII (SSN, account numbers) is sent to the AI.
- * Only names, status fields, dates, and counts.
+ * AI assistant endpoint — answers questions using firm context.
+ * Rate limited: 20 requests per minute per tenant.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import Anthropic from '@anthropic-ai/sdk'
 import { db } from '@/lib/db'
 import { sql } from 'drizzle-orm'
+import Anthropic from '@anthropic-ai/sdk'
+import { withErrorHandling, checkRateLimit, rateLimitResponse } from '@/lib/api-error'
 
 const anthropic = new Anthropic()
 
-// ── Firm context builder ───────────────────────────────────
-
 async function buildFirmContext(tenantId: string): Promise<string> {
-  const now = new Date()
-
-  const [
-    clientStats,
-    openComplianceItems,
-    workflowSummary,
-    flaggedComms,
-    upcomingEvents,
-    recentAudit,
-  ] = await Promise.all([
-
-    // Client overview
-    db.execute(sql`
-      SELECT
-        COUNT(*) FILTER (WHERE data->>'status' = 'active')  as active,
-        COUNT(*) FILTER (WHERE data->>'status' = 'prospect') as prospects,
-        COUNT(*) FILTER (WHERE data->>'kycStatus' = 'needs_review') as kyc_needs_review,
-        COUNT(*) FILTER (
-          WHERE data->>'annualReviewDue' IS NOT NULL
-          AND (data->>'annualReviewDue')::date < CURRENT_DATE
-        ) as overdue_reviews,
-        COUNT(*) FILTER (
-          WHERE data->>'annualReviewDue' IS NOT NULL
-          AND (data->>'annualReviewDue')::date BETWEEN CURRENT_DATE AND CURRENT_DATE + 30
-        ) as upcoming_reviews
-      FROM (
-        SELECT DISTINCT ON (id) id, data
-        FROM clients
+  try {
+    const [clientStats, complianceItems, recentWorkflows, teamMembers] = await Promise.all([
+      db.execute(sql`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE data->>'status' = 'active') as active,
+          COUNT(*) FILTER (WHERE data->>'kycStatus' = 'needs_review') as kyc_review
+        FROM (
+          SELECT DISTINCT ON (id) id, data FROM clients
+          WHERE tenant_id = ${tenantId} AND archived_at IS NULL
+          ORDER BY id, version DESC
+        ) latest_clients
+      `),
+      db.execute(sql`
+        SELECT item_type, severity, title
+        FROM compliance_items
         WHERE tenant_id = ${tenantId}
+          AND resolved_at IS NULL
           AND archived_at IS NULL
-        ORDER BY id, version DESC
-      ) latest_clients
-    `),
+        ORDER BY severity DESC, created_at DESC
+        LIMIT 10
+      `),
+      db.execute(sql`
+        SELECT wr.status, wr.started_at,
+          TRIM(COALESCE(cl.data->>'firstName','') || ' ' || COALESCE(cl.data->>'lastName','')) as client_name
+        FROM workflow_runs wr
+        LEFT JOIN LATERAL (
+          SELECT data FROM clients WHERE id = wr.entity_id AND tenant_id = ${tenantId}
+          ORDER BY version DESC LIMIT 1
+        ) cl ON true
+        WHERE wr.tenant_id = ${tenantId} AND wr.completed_at IS NULL
+        ORDER BY wr.started_at DESC LIMIT 5
+      `),
+      db.execute(sql`
+        SELECT full_name, role, is_cco FROM users
+        WHERE tenant_id = ${tenantId} AND archived_at IS NULL
+      `),
+    ])
 
-    // Open compliance items
-    db.execute(sql`
-      SELECT
-        item_type, severity, title, due_date, client_id
-      FROM compliance_items
-      WHERE tenant_id = ${tenantId}
-        AND resolved_at IS NULL
-        AND (snoozed_until IS NULL OR snoozed_until < NOW())
-      ORDER BY
-        CASE severity
-          WHEN 'critical' THEN 1
-          WHEN 'warning'  THEN 2
-          ELSE 3
-        END,
-        created_at DESC
-      LIMIT 20
-    `),
-
-    // Workflow runs summary
-    db.execute(sql`
-      SELECT
-        status,
-        COUNT(*) as count,
-        MAX(EXTRACT(EPOCH FROM NOW() - COALESCE(updated_at, started_at)) / 86400) as max_days_stalled
-      FROM workflow_runs
-      WHERE tenant_id = ${tenantId}
-        AND completed_at IS NULL
-      GROUP BY status
-    `),
-
-    // Unreviewed AI flags
-    db.execute(sql`
-      SELECT
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE ai_severity = 'high') as high,
-        COUNT(*) FILTER (WHERE ai_severity = 'medium') as medium
-      FROM communications
-      WHERE tenant_id = ${tenantId}
-        AND ai_flagged = true
-        AND reviewed_at IS NULL
-        AND archived_at IS NULL
-    `),
-
-    // Upcoming calendar events (next 60 days)
-    db.execute(sql`
-      SELECT title, event_type, due_at
-      FROM calendar_events
-      WHERE tenant_id = ${tenantId}
-        AND due_at BETWEEN NOW() AND NOW() + INTERVAL '60 days'
-      ORDER BY due_at
-      LIMIT 10
-    `),
-
-    // Recent audit activity
-    db.execute(sql`
-      SELECT action, skill_slug, created_at
-      FROM audit_log
-      WHERE tenant_id = ${tenantId}
-      ORDER BY created_at DESC
-      LIMIT 20
-    `),
-  ])
-
-  const stats     = clientStats.rows[0] as any
-  const workflows = workflowSummary.rows as any[]
-  const flags     = flaggedComms.rows[0] as any
-  const items     = openComplianceItems.rows as any[]
-  const events    = upcomingEvents.rows as any[]
-  const activity  = recentAudit.rows as any[]
-
-  return `
-FIRM DATA SNAPSHOT — ${now.toISOString()}
-You are an AI assistant for a registered investment adviser (RIA) using Zenith North.
-
-═══════════════════════════════════════
-CLIENT OVERVIEW
-═══════════════════════════════════════
-Active clients:         ${stats.active ?? 0}
-Prospects:              ${stats.prospects ?? 0}
-KYC needs review:       ${stats.kyc_needs_review ?? 0}
-Overdue annual reviews: ${stats.overdue_reviews ?? 0}
-Reviews due in 30 days: ${stats.upcoming_reviews ?? 0}
-
-═══════════════════════════════════════
-OPEN COMPLIANCE ITEMS (${items.length} total)
-═══════════════════════════════════════
-${items.length === 0
-    ? 'No open compliance items.'
-    : items.map(i =>
-        `[${i.severity?.toUpperCase()}] ${i.title}${i.due_date ? ` · Due: ${new Date(i.due_date).toLocaleDateString()}` : ''}`
-      ).join('\n')
-  }
-
-═══════════════════════════════════════
-ACTIVE WORKFLOWS
-═══════════════════════════════════════
-${workflows.length === 0
-    ? 'No active workflows.'
-    : workflows.map(w =>
-        `${w.status}: ${w.count} run(s)${w.max_days_stalled > 14 ? ` · MAX ${Math.floor(w.max_days_stalled)} days stalled` : ''}`
-      ).join('\n')
-  }
-
-═══════════════════════════════════════
-COMMUNICATION FLAGS
-═══════════════════════════════════════
-Total unreviewed:  ${flags.total ?? 0}
-High severity:     ${flags.high ?? 0}
-Medium severity:   ${flags.medium ?? 0}
-
-═══════════════════════════════════════
-UPCOMING EVENTS (60 days)
-═══════════════════════════════════════
-${events.length === 0
-    ? 'No upcoming events.'
-    : events.map(e =>
-        `${new Date(e.due_at).toLocaleDateString()} · ${e.title}`
-      ).join('\n')
-  }
-
-═══════════════════════════════════════
-RECENT ACTIVITY (last 20 entries)
-═══════════════════════════════════════
-${activity.map(a =>
-    `${new Date(a.created_at).toLocaleString()} · [${a.skill_slug}] ${a.action}`
-  ).join('\n')}
+    const cs = (clientStats.rows[0] as any) ?? {}
+    return `
+FIRM CONTEXT:
+- Total clients: ${cs.total ?? 0} (${cs.active ?? 0} active, ${cs.kyc_review ?? 0} needing KYC review)
+- Open compliance items: ${complianceItems.rows.length}
+${(complianceItems.rows as any[]).map(i => `  • [${i.severity?.toUpperCase()}] ${i.title}`).join('\n')}
+- Active onboardings: ${recentWorkflows.rows.length}
+${(recentWorkflows.rows as any[]).map(r => `  • ${r.client_name ?? 'Unknown'} — ${r.status?.replace(/_/g,' ')}`).join('\n')}
+- Team members: ${(teamMembers.rows as any[]).map(m => `${m.full_name} (${m.role}${m.is_cco ? ', CCO' : ''})`).join(', ')}
 `.trim()
+  } catch {
+    return 'Firm context unavailable.'
+  }
 }
 
-// ── Route handler ──────────────────────────────────────────
-
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
   const { userId } = await auth()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
-  const { question, history = [] } = body
-
-  if (!question?.trim()) {
-    return NextResponse.json({ error: 'Question required' }, { status: 400 })
-  }
-
-  // Resolve tenant
+  // Find tenant
   const userResult = await db.execute(sql`
-    SELECT id, tenant_id, full_name, role
-    FROM users
-    WHERE clerk_user_id = ${userId}
-      AND archived_at IS NULL
+    SELECT u.tenant_id, t.name as tenant_name
+    FROM users u
+    JOIN tenants t ON t.id = u.tenant_id
+    WHERE u.clerk_user_id = ${userId}
+      AND u.archived_at IS NULL
     LIMIT 1
   `)
-
   if (!userResult.rows.length) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
+  const { tenant_id: tenantId } = userResult.rows[0] as any
 
-  const user = userResult.rows[0] as { id: string; tenant_id: string; full_name: string; role: string }
+  // Rate limit: 20 requests per minute per tenant
+  const rl = checkRateLimit(`ai:${tenantId}`, 20, 60000)
+  if (!rl.allowed) return rateLimitResponse(rl.resetAt)
 
-  // Build firm context snapshot
-  const firmContext = await buildFirmContext(user.tenant_id)
+  const body = await request.json()
+  const { question, history = [] } = body
 
-  // Build conversation history for Claude
+  if (!question || typeof question !== 'string' || question.trim().length === 0) {
+    return NextResponse.json({ error: 'Question is required' }, { status: 400 })
+  }
+  if (question.length > 2000) {
+    return NextResponse.json({ error: 'Question too long (max 2000 characters)' }, { status: 400 })
+  }
+
+  const firmContext = await buildFirmContext(tenantId)
+
   const messages: Anthropic.MessageParam[] = [
-    // Inject firm context as first user message
-    {
-      role:    'user',
-      content: `Here is the current state of my firm:\n\n${firmContext}\n\nPlease use this data to answer my questions.`,
-    },
-    {
-      role:    'assistant',
-      content: `I have your firm's current data loaded. I can see your client overview, open compliance items, workflow status, communication flags, and recent activity. What would you like to know?`,
-    },
-    // Prior conversation history
-    ...history.map((msg: { role: string; content: string }) => ({
-      role:    msg.role as 'user' | 'assistant',
-      content: msg.content,
-    })),
-    // Current question
-    {
-      role:    'user',
-      content: question,
-    },
+    ...history.slice(-10), // Last 10 exchanges for context
+    { role: 'user', content: question.trim() },
   ]
 
   const response = await anthropic.messages.create({
-    model:      'claude-sonnet-4-6',
+    model:  'claude-sonnet-4-6',
     max_tokens: 1000,
-    system: `You are an expert compliance AI assistant for ${user.full_name}'s registered investment adviser firm, operating within Zenith North — an RIA compliance platform.
+    system: `You are an AI assistant for a registered investment adviser (RIA) using Zenith North compliance software.
+You help advisors, CCOs, and operations staff with questions about their clients, compliance requirements, workflows, and firm operations.
 
-You have access to real-time data about the firm including:
-- Client records, status, and compliance standing
-- Open compliance items requiring action
-- Workflow run status and bottlenecks
-- Communication flags and review queue
-- Upcoming regulatory deadlines and calendar events
-- Audit log activity
+PRIVACY RULES:
+- Never include SSNs, account numbers, or passwords in responses
+- Treat all client information as confidential
+- Do not make specific investment recommendations
 
-Your job is to:
-1. Answer questions about the firm's current state accurately
-2. Surface important compliance issues the advisor may have missed
-3. Suggest specific action items when appropriate
-4. Explain SEC/FINRA regulatory requirements when asked
-5. Help the advisor prepare for examinations
+CURRENT FIRM DATA:
+${firmContext}
 
-You do NOT have access to:
-- Specific dollar amounts or account balances
-- Social Security Numbers or government IDs
-- Specific investment holdings or transactions
-- Banking or custodian data
-
-Be concise, specific, and action-oriented. Use bullet points for lists.
-When referencing specific compliance items, include the severity and any due dates.
-Always remind advisors that your responses are not legal advice.`,
+Be concise, accurate, and compliance-aware. If asked about something you don't have data for, say so clearly.`,
     messages,
   })
 
-  const answer = response.content
-    .filter(b => b.type === 'text')
-    .map(b => (b as { type: 'text'; text: string }).text)
-    .join('')
+  const answer = response.content[0].type === 'text' ? response.content[0].text : ''
 
-  return NextResponse.json({ answer })
-}
+  return NextResponse.json({ answer, usage: response.usage })
+})

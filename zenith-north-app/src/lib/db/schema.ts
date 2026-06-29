@@ -42,8 +42,8 @@ import { relations, sql } from 'drizzle-orm'
 
 export const tenants = pgTable('tenants', {
   id:          uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  slug:        text('slug').notNull().unique(),          // 'wright-advisory'
-  name:        text('name').notNull(),                   // 'Wright Advisory LLC'
+  slug:        text('slug').notNull().unique(),          // e.g. 'acme-advisors'
+  name:        text('name').notNull(),                   // e.g. 'Acme Advisory LLC'
   plan:        text('plan').notNull().default('core'),   // 'core' | 'professional' | 'enterprise'
   config:      jsonb('config').notNull().default('{}'),  // feature flags, branding, fiscal year
   clerkOrgId:  text('clerk_org_id').unique(),            // Clerk organization ID

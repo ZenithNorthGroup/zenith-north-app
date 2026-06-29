@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { trpc } from '@/lib/trpc/provider'
 import { cn } from '@/lib/utils'
 import {
   IconCheck, IconCopy, IconExternalLink,
@@ -410,7 +411,8 @@ function SlackSetup() {
 
 export default function IntegrationsPage() {
   // In production: get tenantSlug from auth context
-  const tenantSlug = 'wright-advisory'
+  const { data: me } = trpc.me.getMe.useQuery()
+  const tenantSlug = me?.tenantSlug ?? ''
   const journalAddress = `ingest-${tenantSlug}@mail.zenith-north.com`
 
   const CHANNELS: Channel[] = [

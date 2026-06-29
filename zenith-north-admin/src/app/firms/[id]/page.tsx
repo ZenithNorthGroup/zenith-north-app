@@ -239,6 +239,9 @@ export default function FirmDetailPage({ params }: { params: Promise<{ id: strin
           <button onClick={runEngineForFirm} disabled={engineRunning} className="btn btn-ghost btn-sm">
             {engineRunning ? 'Running...' : '⚡ Run engine'}
           </button>
+          <Link href={`/firms/${params.id}/credentials`} className="btn btn-ghost btn-sm">
+            🔑 Credentials
+          </button>
           <a
             href={`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'}/dashboard`}
             target="_blank"

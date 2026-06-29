@@ -1,46 +1,36 @@
 /**
  * POST /api/webhooks/clerk
- *
- * Clerk fires this when a user is created or signs in for the first time.
- * We use it to ensure the user has a row in our DB.
+ * Handles Clerk webhook events for user lifecycle management.
  *
  * Events handled:
- *   user.created  — new Clerk account, create DB user row
- *   session.created — first time signing in, ensure row exists
+ *   user.created    — new user signed up
+ *   user.updated    — user changed name/email
+ *   session.created — user signed in (update last_seen_at, resolve pending invite)
  *
- * For the demo/seed scenario, the seed script creates the user row directly.
- * This webhook handles production new-user signups.
- *
- * SETUP:
- *   1. dashboard.clerk.com → Webhooks → Add Endpoint
- *   2. URL: https://app.zenith-north.com/api/webhooks/clerk
- *   3. Events: user.created, session.created
- *   4. Copy Signing Secret → CLERK_WEBHOOK_SECRET env var
+ * Setup in Clerk Dashboard:
+ *   Webhooks → Add endpoint → https://app.zenith-north.com/api/webhooks/clerk
+ *   Events: user.created, user.updated, session.created
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { Webhook } from 'svix'
-import { db, users, tenants } from '@/lib/db'
-import { eq, sql } from 'drizzle-orm'
-
-// ── Verify Svix signature ─────────────────────────────────
+import { db } from '@/lib/db'
+import { sql } from 'drizzle-orm'
 
 async function verifyWebhook(request: NextRequest): Promise<any> {
-  const webhookSecret = process.env.CLERK_WEBHOOK_SECRET
-  if (!webhookSecret) {
-    throw new Error('CLERK_WEBHOOK_SECRET not set')
-  }
+  const secret = process.env.CLERK_WEBHOOK_SECRET
+  if (!secret) throw new Error('CLERK_WEBHOOK_SECRET not set')
 
-  const svixId        = request.headers.get('svix-id')
-  const svixTimestamp = request.headers.get('svix-timestamp')
-  const svixSignature = request.headers.get('svix-signature')
+  const svixId        = request.headers.get('svix-id')        ?? ''
+  const svixTimestamp = request.headers.get('svix-timestamp') ?? ''
+  const svixSignature = request.headers.get('svix-signature') ?? ''
 
   if (!svixId || !svixTimestamp || !svixSignature) {
-    throw new Error('Missing Svix headers')
+    throw new Error('Missing svix headers')
   }
 
   const body = await request.text()
-  const wh   = new Webhook(webhookSecret)
+  const wh   = new Webhook(secret)
 
   return wh.verify(body, {
     'svix-id':        svixId,
@@ -49,105 +39,102 @@ async function verifyWebhook(request: NextRequest): Promise<any> {
   })
 }
 
-// ── Ensure user row exists ────────────────────────────────
-
-async function ensureUserExists(clerkUserId: string, email: string, fullName: string) {
-  // Check if user already exists
-  const existing = await db.query.users.findFirst({
-    where: eq(users.clerkUserId, clerkUserId),
-  })
-
-  if (existing) return existing
-
-  // For new users: we need a tenant.
-  // In the self-serve flow, the user creates their firm during onboarding.
-  // For now: create a placeholder tenant so the user can sign in.
-  // The onboarding flow completes the firm setup.
-
-  // Check if there's an existing tenant with this email domain
-  const domain = email.split('@')[1]
-  const existingTenant = await db.query.tenants.findFirst({
-    where: sql`config->>'domain' = ${domain}`,
-  })
-
-  let tenantId: string
-
-  if (existingTenant) {
-    tenantId = existingTenant.id
-  } else {
-    // Create a new tenant for this user
-    const slug = email
-      .split('@')[0]
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '-')
-      .slice(0, 40)
-      + '-' + Math.random().toString(36).slice(2, 6)
-
-    const [newTenant] = await db.insert(tenants).values({
-      name:   fullName ? `${fullName}'s Firm` : 'New Advisory Firm',
-      slug,
-      config: {
-        plan:    'trial',
-        status:  'onboarding',
-        domain,
-        ccoEmail: email,
-      },
-    }).returning()
-
-    tenantId = newTenant.id
-  }
-
-  // Create the user row
-  const [newUser] = await db.insert(users).values({
-    tenantId,
-    clerkUserId,
-    email,
-    fullName: fullName || email.split('@')[0],
-    role:     'admin',  // first user is always admin/owner
-  }).returning()
-
-  console.log(`[CLERK WEBHOOK] Created user ${newUser.id} for ${email}`)
-  return newUser
-}
-
-// ── Handler ───────────────────────────────────────────────
-
 export async function POST(request: NextRequest) {
   let event: any
-
   try {
     event = await verifyWebhook(request)
   } catch (err) {
-    console.error('[CLERK WEBHOOK] Verification failed:', err)
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
+    console.error('[Clerk webhook] Verification failed:', err)
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }
 
   const { type, data } = event
 
-  if (type === 'user.created' || type === 'session.created') {
-    const clerkUserId = type === 'user.created' ? data.id : data.user_id
-    const email = type === 'user.created'
-      ? data.email_addresses?.[0]?.email_address
-      : data.public_user_data?.identifier
+  try {
+    switch (type) {
 
-    if (!clerkUserId || !email) {
-      return NextResponse.json({ status: 'skipped — no email' })
+      case 'user.created': {
+        const clerkUserId = data.id as string
+        const email       = data.email_addresses?.[0]?.email_address ?? ''
+        const firstName   = data.first_name ?? ''
+        const lastName    = data.last_name  ?? ''
+        const fullName    = `${firstName} ${lastName}`.trim() || email
+        const avatarUrl   = data.image_url ?? null
+
+        // Check if this email matches a pending invite
+        const pendingResult = await db.execute(sql`
+          SELECT id, tenant_id, role FROM users
+          WHERE email = ${email}
+            AND clerk_user_id LIKE 'pending_%'
+            AND archived_at IS NULL
+          LIMIT 1
+        `)
+
+        if (pendingResult.rows.length > 0) {
+          // Update existing pending row with real Clerk ID
+          const pending = pendingResult.rows[0] as any
+          await db.execute(sql`
+            UPDATE users
+            SET clerk_user_id = ${clerkUserId},
+                full_name     = ${fullName},
+                avatar_url    = ${avatarUrl},
+                last_seen_at  = NOW()
+            WHERE id = ${pending.id}
+          `)
+
+          // Audit log
+          await db.execute(sql`
+            INSERT INTO audit_log (tenant_id, user_id, skill_slug, action, entity_type, entity_id, next_state)
+            VALUES (${pending.tenant_id}, ${pending.id}, 'system', 'user.activated',
+                    'user', ${pending.id},
+                    ${JSON.stringify({ email, fullName, clerkUserId })}::jsonb)
+          `)
+        }
+        // If no pending invite, user is signing up directly — 
+        // they'll be handled by the firm onboarding flow
+        break
+      }
+
+      case 'user.updated': {
+        const clerkUserId = data.id as string
+        const email       = data.email_addresses?.[0]?.email_address ?? ''
+        const firstName   = data.first_name ?? ''
+        const lastName    = data.last_name  ?? ''
+        const fullName    = `${firstName} ${lastName}`.trim() || email
+        const avatarUrl   = data.image_url ?? null
+
+        await db.execute(sql`
+          UPDATE users
+          SET full_name  = ${fullName},
+              email      = ${email},
+              avatar_url = ${avatarUrl}
+          WHERE clerk_user_id = ${clerkUserId}
+            AND archived_at IS NULL
+        `)
+        break
+      }
+
+      case 'session.created': {
+        const clerkUserId = data.user_id as string
+
+        await db.execute(sql`
+          UPDATE users
+          SET last_seen_at = NOW()
+          WHERE clerk_user_id = ${clerkUserId}
+            AND archived_at IS NULL
+        `)
+        break
+      }
+
+      default:
+        // Unhandled event type — ignore silently
+        break
     }
-
-    const fullName = type === 'user.created'
-      ? [data.first_name, data.last_name].filter(Boolean).join(' ')
-      : data.public_user_data?.first_name
-        ? `${data.public_user_data.first_name} ${data.public_user_data.last_name ?? ''}`.trim()
-        : ''
-
-    try {
-      await ensureUserExists(clerkUserId, email, fullName)
-    } catch (err) {
-      console.error('[CLERK WEBHOOK] Failed to create user:', err)
-      // Return 200 anyway — Clerk will retry on 4xx/5xx
-      return NextResponse.json({ status: 'error', error: String(err) })
-    }
+  } catch (err) {
+    console.error(`[Clerk webhook] Error processing ${type}:`, err)
+    // Return 200 to prevent Clerk from retrying — log the error internally
+    return NextResponse.json({ error: 'Processing error', type }, { status: 200 })
   }
 
-  return NextResponse.json({ status: 'ok', type })
+  return NextResponse.json({ received: true, type })
 }

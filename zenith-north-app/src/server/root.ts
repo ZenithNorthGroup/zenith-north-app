@@ -22,12 +22,15 @@ import { reviewsRouter }    from './routers/reviews'
 import { incidentsRouter }  from './routers/incidents'
 import { vendorsRouter }    from './routers/vendors'
 
+import { credentialsRouter } from './routers/credentials'
+
 export const appRouter = router({
   // Core
-  clients:    clientsRouter,
-  me:         meRouter,
-  users:      usersRouter,
-  settings:   settingsRouter,
+  clients:     clientsRouter,
+  me:          meRouter,
+  users:       usersRouter,
+  settings:    settingsRouter,
+  credentials: credentialsRouter,
   compliance: complianceRouter,
   workflows:  workflowsRouter,
   messages:   messagesRouter,
